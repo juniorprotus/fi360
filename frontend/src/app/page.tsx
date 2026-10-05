@@ -6,6 +6,7 @@ import { Sidebar } from "../components/layout/Sidebar";
 import { MetricsCards } from "../components/modules/MetricsCards";
 import { VehicleTableWidget } from "../components/modules/VehicleTableWidget";
 import { HealthMonitorWidget } from "../components/modules/HealthMonitorWidget";
+import { AIPredictionsWidget } from "../components/modules/AIPredictionsWidget";
 import { fetchHealth, fetchVehicles, fetchVehicleMetrics } from "../lib/api";
 import { Vehicle, FleetMetrics, BackendHealth } from "../types/fleet";
 
@@ -124,7 +125,10 @@ export default function Home() {
           {/* 2. Core Vehicle & Telematics Data Grid */}
           <VehicleTableWidget vehicles={vehicles} isFallback={isFallback} onRefresh={loadData} />
 
-          {/* 3. Render Free-Tier Anti-Hibernation & Architecture Monitor */}
+          {/* 3. AI Predictive Maintenance */}
+          <AIPredictionsWidget vehicles={vehicles} />
+
+          {/* 4. Render Free-Tier Anti-Hibernation & Architecture Monitor */}
           <HealthMonitorWidget health={health} isFallback={isFallback} />
         </main>
       </div>

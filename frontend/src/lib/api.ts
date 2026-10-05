@@ -114,3 +114,37 @@ export async function fetchVehicleMetrics(): Promise<{ data: FleetMetrics; isFal
     };
   }
 }
+
+export async function fetchAIPrediction(telematicsData: any): Promise<{ data: any; isFallback: boolean }> {
+  try {
+    const res = await fetch(`${API_BASE}/api/ai/predict-maintenance`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telematicsData }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(8000), // AI calls take longer
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    return { data: json.data, isFallback: false };
+  } catch (err) {
+    console.error("AI API Error:", err);
+    // Return a dummy fallback analysis for the frontend preview
+    return {
+      data: {
+        healthScore: 70,
+        predictedIssues: [
+          {
+            component: "Network/API Connection",
+            probability: "High",
+            timeToFailureDays: 0,
+            recommendation: "Backend unreachable. This is a local frontend-only placeholder.",
+          },
+        ],
+        summary: "Could not reach the AI service.",
+        isFallback: true,
+      },
+      isFallback: true,
+    };
+  }
+}

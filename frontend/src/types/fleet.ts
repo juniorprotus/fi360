@@ -47,3 +47,18 @@ export interface BackendHealth {
   database: string;
   modules: Record<string, string>;
 }
+
+// AI Types
+export interface AIPredictionIssue {
+  component: string;
+  probability: "Low" | "Medium" | "High";
+  timeToFailureDays: number;
+  recommendation: string;
+}
+
+export interface AIPredictionResponse {
+  healthScore: number;
+  predictedIssues: AIPredictionIssue[];
+  summary: string;
+  isFallback?: boolean;
+}
