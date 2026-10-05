@@ -6,11 +6,11 @@
 - [x] Push initial repository structure to GitHub (e.g., github.com/juniorprotus/fi360).
 - [x] Implement the `GET /api/health` endpoint on the backend.
 
-## Phase 2: Database & Base API (Up Next)
-- [ ] Connect backend to MongoDB Atlas (M0).
-- [ ] Define the base `Organization` and `Vehicle/Asset` Mongoose schemas.
-- [ ] Deploy backend to Render and set up cron-job.org ping (14-min interval).
-- [ ] Deploy frontend to Vercel.
+## Phase 2: Database & Base API (Completed)
+- [x] Connect backend to MongoDB Atlas (M0).
+- [x] Define the base `Organization` and `Vehicle/Asset` Mongoose schemas.
+- [x] Deploy backend to Render and set up cron-job.org ping (14-min interval).
+- [x] Deploy frontend to Vercel.
 
 ## Phase 3: The First Standalone Module
 - [ ] Build the "Vehicle/Asset" API module with strict Zod validation.
