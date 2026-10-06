@@ -1,6 +1,7 @@
 {
   "name": "fi360-backend",
   "version": "1.0.0",
+  "type": "module",
   "description": "Fleet Intelligence 360 (FI360) Modular Backend API",
   "main": "dist/server.js",
   "scripts": {
