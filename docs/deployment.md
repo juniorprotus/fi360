@@ -31,7 +31,7 @@ In Render → Service → **Environment** tab, add:
 After deploying, Render assigns a URL like:
 `https://fi360-backend.onrender.com`
 
-**Test it:** `curl https://fi360-backend.onrender.com/api/health`
+**Test it:** `curl https://fi360.onrender.com/api/health`
 
 ---
 
@@ -40,7 +40,7 @@ Render free tier sleeps after 15 minutes of inactivity. Fix it with a free cron:
 
 1. Go to [cron-job.org](https://cron-job.org) and create a free account
 2. Create a new cron job:
-   - **URL:** `https://fi360-backend.onrender.com/api/health`
+   - **URL:** `https://fi360.onrender.com/api/health`
    - **Schedule:** Every **14 minutes** (`*/14 * * * *`)
    - **HTTP Method:** `GET`
 3. Save — your backend now stays live 24/7 🟢
@@ -77,11 +77,11 @@ Once you have your Vercel URL, go back to Render and update the `FRONTEND_URL` e
 
 ```bash
 # 1. Backend health
-curl https://fi360-backend.onrender.com/api/health
+curl https://fi360.onrender.com/api/health
 
 # 2. Vehicles API (uses Atlas data after seeding)
-curl https://fi360-backend.onrender.com/api/vehicles
+curl https://fi360.onrender.com/api/vehicles
 
 # 3. Fleet metrics
-curl https://fi360-backend.onrender.com/api/vehicles/metrics
+curl https://fi360.onrender.com/api/vehicles/metrics
 ```
