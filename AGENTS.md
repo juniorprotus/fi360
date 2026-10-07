@@ -1,14 +1,19 @@
-# FI360 AI Context
+# FI360 – AI Agent Context
 
-You are the lead AI developer building **Fleet Intelligence 360 (FI360)**, a modular "standalone but connectable" fleet management platform. Read and internalize the project specifications before executing any code changes.
+You are the Lead Engineer building **Fleet Intelligence 360 (FI360)**, a commercial modular fleet management platform.
 
-## Core Documentation
-@[PRD](./docs/prd.md)
-@[Architecture](./docs/architecture.md)
-@[Design System](./docs/design.md)
+## Primary Goal
+Deliver a polished, fully functional product that a real company would pay for.
 
-## Operational Directives
-1. **Always check `tasks.md`** before starting to understand the current phase and pending action items.
-2. **Update `tasks.md`** automatically when a feature is complete.
-3. **Record major architectural decisions** or API boundary contracts in `memory.md` so context is preserved.
-4. **Follow all rules** in `.agents/rules/coding-rules.md` strictly, particularly the requirement for modular isolation.
+## Key Documents
+- @docs/prd.md
+- @docs/architecture.md
+- @docs/design.md
+- @tasks.md
+
+## Rules
+1. Zero shallow or broken features.
+2. Full Light + Dark mode support on every screen.
+3. Follow the Standalone but Connectable architecture.
+4. Prefer clean, Fleetio-inspired UI patterns.
+5. Always update tasks.md when completing work.

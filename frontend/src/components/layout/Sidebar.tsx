@@ -1,140 +1,177 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  Truck,
+  Users,
+  Wrench,
+  Disc,
+  Fuel,
+  ClipboardCheck,
+  Send,
+  DollarSign,
+  Radio,
+  BarChart3,
+  Shield,
+  Layers,
+  Settings,
+  Sparkles,
+  LayoutDashboard,
+} from "lucide-react";
 
 interface SidebarProps {
-  currentTab: string;
-  onTabChange: (tab: string) => void;
-  enabledModules?: {
-    vehicles: boolean;
-    drivers: boolean;
-    maintenance: boolean;
-    ai: boolean;
-  };
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
-export function Sidebar({
-  currentTab,
-  onTabChange,
-  enabledModules = { vehicles: true, drivers: true, maintenance: true, ai: true },
-}: SidebarProps) {
-  const navItems = [
+export function Sidebar({ isOpen, onClose }: SidebarProps) {
+  const pathname = usePathname();
+
+  const navigationSections = [
     {
-      id: "overview",
-      label: "Overview",
-      enabled: true,
-      badge: "Live",
-      icon: (
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-        </svg>
-      ),
+      group: "Core Operations",
+      items: [
+        { name: "Executive Overview", href: "/dashboard", icon: LayoutDashboard, badge: "Live" },
+        { name: "Vehicles & Assets", href: "/dashboard/fleet", icon: Truck, badge: "Mod 1" },
+        { name: "Driver Management", href: "/dashboard/drivers", icon: Users },
+        { name: "Workshop & Repairs", href: "/dashboard/workshop", icon: Wrench },
+        { name: "Inspections (eDVIR)", href: "/dashboard/inspections", icon: ClipboardCheck },
+      ],
     },
     {
-      id: "vehicles",
-      label: "Vehicles & Assets",
-      enabled: enabledModules.vehicles,
-      badge: "Module 1",
-      icon: (
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-        </svg>
-      ),
+      group: "Asset & Cost Control",
+      items: [
+        { name: "Tyre Management", href: "/dashboard/tyres", icon: Disc },
+        { name: "Fuel & Energy", href: "/dashboard/fuel", icon: Fuel },
+        { name: "Dispatch & Transport", href: "/dashboard/transport", icon: Send },
+        { name: "Total Cost of Ownership", href: "/dashboard/costs", icon: DollarSign },
+      ],
     },
     {
-      id: "drivers",
-      label: "Drivers & Compliance",
-      enabled: enabledModules.drivers,
-      icon: (
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-        </svg>
-      ),
-    },
-    {
-      id: "maintenance",
-      label: "Workshop & Repairs",
-      enabled: enabledModules.maintenance,
-      icon: (
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      ),
-    },
-    {
-      id: "ai",
-      label: "Gemini Telematics",
-      enabled: enabledModules.ai,
-      badge: "AI 360",
-      icon: (
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-        </svg>
-      ),
+      group: "Intelligence & Platform",
+      items: [
+        { name: "Telematics & IoT", href: "/dashboard/telematics", icon: Radio },
+        { name: "Fleet Intelligence AI", href: "/dashboard/analytics", icon: Sparkles, badge: "AI 360" },
+        { name: "Security & Tenancy", href: "/dashboard/admin", icon: Shield },
+        { name: "Interoperability API", href: "/dashboard/interop", icon: Layers },
+        { name: "Organization Settings", href: "/dashboard/settings", icon: Settings },
+      ],
     },
   ];
 
-  return (
-    <aside className="w-64 flex-shrink-0 border-r border-slate-800 bg-slate-900/60 p-4 flex flex-col justify-between hidden md:flex">
+  const sidebarContent = (
+    <div className="flex h-full flex-col justify-between border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 transition-colors duration-200">
+      {/* Brand Header */}
       <div>
-        <div className="px-3 mb-3 text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
-          Ecosystem Modules
-        </div>
-        <nav className="space-y-1">
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => onTabChange(item.id)}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                currentTab === item.id
-                  ? "bg-slate-800 text-white border border-slate-700 shadow-sm"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <span className={currentTab === item.id ? "text-emerald-400" : "text-slate-500"}>
-                  {item.icon}
+        <div className="flex h-16 items-center justify-between border-b border-slate-200 px-6 dark:border-slate-800">
+          <Link href="/dashboard" className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 font-black text-sm tracking-wider text-white shadow-md shadow-blue-500/20">
+              FI
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-base font-bold tracking-tight text-slate-900 dark:text-white">
+                  FI360
                 </span>
-                <span>{item.label}</span>
+                <span className="rounded bg-blue-500/10 px-1.5 py-0.2 text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                  ENTERPRISE
+                </span>
               </div>
-              {item.badge && (
-                <span
-                  className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
-                    item.id === "ai"
-                      ? "bg-purple-900/50 text-purple-300 border border-purple-700/50"
-                      : "bg-slate-800 text-slate-300 border border-slate-700"
-                  }`}
-                >
-                  {item.badge}
-                </span>
-              )}
-            </button>
+              <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                Fleet Intelligence OS
+              </p>
+            </div>
+          </Link>
+        </div>
+
+        {/* Navigation list */}
+        <div className="space-y-6 px-3 py-4 max-h-[calc(100vh-140px)] overflow-y-auto">
+          {navigationSections.map((section) => (
+            <div key={section.group}>
+              <div className="px-3 mb-2 text-[10px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500">
+                {section.group}
+              </div>
+              <div className="space-y-1">
+                {section.items.map((item) => {
+                  const isActive = pathname === item.href;
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={onClose}
+                      className={`group flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-all ${
+                        isActive
+                          ? "bg-blue-600 text-white shadow-sm shadow-blue-500/30"
+                          : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Icon
+                          className={`h-4 w-4 transition-colors ${
+                            isActive
+                              ? "text-white"
+                              : "text-slate-400 group-hover:text-slate-600 dark:text-slate-500 dark:group-hover:text-slate-300"
+                          }`}
+                        />
+                        <span>{item.name}</span>
+                      </div>
+                      {item.badge && (
+                        <span
+                          className={`rounded px-1.5 py-0.5 text-[9px] font-bold tracking-wider uppercase ${
+                            isActive
+                              ? "bg-white/20 text-white"
+                              : item.badge === "Live"
+                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                              : item.badge.includes("AI")
+                              ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
+                              : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                          }`}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
           ))}
-        </nav>
+        </div>
       </div>
 
-      {/* Deployment & Architecture Badge */}
-      <div className="rounded-lg bg-slate-950/60 p-3 border border-slate-800/80 text-xs">
-        <div className="flex items-center justify-between text-slate-400 font-semibold mb-1">
-          <span>Stack Status</span>
-          <span className="text-[10px] text-emerald-400 font-mono">Zero-Cost</span>
-        </div>
-        <div className="space-y-1 text-[11px] text-slate-400">
-          <div className="flex justify-between">
-            <span>Frontend:</span>
-            <span className="text-slate-300">Vercel (App Router)</span>
+      {/* Footer / Architecture badge */}
+      <div className="border-t border-slate-200 p-4 dark:border-slate-800">
+        <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-950/60">
+          <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+            <span>FI360 Core Engine</span>
+            <span className="flex h-2 w-2 rounded-full bg-emerald-500" />
           </div>
-          <div className="flex justify-between">
-            <span>Backend:</span>
-            <span className="text-slate-300">Render (Node/Express)</span>
-          </div>
-          <div className="flex justify-between">
-            <span>DB:</span>
-            <span className="text-slate-300">MongoDB Atlas M0</span>
-          </div>
+          <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+            Standalone &amp; Connectable v2.1
+          </p>
         </div>
       </div>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Desktop static sidebar */}
+      <aside className="hidden w-64 flex-shrink-0 md:block">{sidebarContent}</aside>
+
+      {/* Mobile Drawer */}
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex md:hidden">
+          <div
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm"
+            onClick={onClose}
+          />
+          <div className="relative z-50 w-72 max-w-xs">{sidebarContent}</div>
+        </div>
+      )}
+    </>
   );
 }

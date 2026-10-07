@@ -1,20 +1,31 @@
 ---
-description: Core coding standards, API boundaries, and architectural invariants for FI360
 trigger: always_on
+description: Core coding standards, API boundaries, and architectural invariants for FI360
 ---
-# Coding Rules & Conventions
 
-## 1. Modular "Connectable" API Boundaries
-*   **Strict Isolation:** A module (e.g., Fuel) should never directly query the database collection of another module (e.g., Maintenance). They must communicate via defined API functions or HTTP contracts.
-*   **Typing:** Use strict TypeScript and Zod. Every module must expose a Zod schema for its expected inputs and outputs.
+# Coding Rules – FI360
 
-## 2. Backend (Render / Node.js)
-*   **Health Check:** Ensure a `GET /api/health` route is permanently available at the root level for uptime monitoring.
-*   **Stateless:** The backend must remain completely stateless. All session data, token validation, and module states reside in MongoDB.
+## 1. Functional Completeness (Non-negotiable)
+- Every button must have a real handler.
+- Every form must validate with Zod and persist data (or show a clear error).
+- No placeholder text like “Coming soon” or “This will work later” in customer-facing UI.
+- Empty states must offer a clear way to create the first record.
 
-## 3. Database (MongoDB)
-*   **Schema Flexibility:** Utilize Mongoose but avoid overly deep nesting. Use references (`ref`) to connect standalone entities (e.g., linking a `Tyre` document to a `Vehicle` document).
-*   **Connection Resilience:** Implement auto-reconnect logic for MongoDB to handle periodic Render server restarts.
+## 2. Theme Compliance
+- Never use a color class without its `dark:` counterpart.
+- Theme toggle must work and persist.
 
-## 4. Error Handling
-*   Failures must be isolated. If the Gemini AI API rate-limits while analyzing driver data, the rest of the Driver module must continue functioning normally.
+## 3. Modular Boundaries
+- Code for a module lives inside that module’s folder.
+- Cross-module data access only through service interfaces / API clients.
+
+## 4. Type Safety & Validation
+- No `any`.
+- Shared Zod schemas for all forms and API payloads.
+- Proper TypeScript interfaces for every domain entity.
+
+## 5. User Experience
+- Loading states on all async actions.
+- Success and error toasts.
+- Optimistic updates where appropriate.
+- Proper error boundaries and fallback UI.

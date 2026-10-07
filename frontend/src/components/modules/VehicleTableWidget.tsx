@@ -2,14 +2,21 @@
 
 import React, { useState } from "react";
 import { Vehicle, VehicleStatus } from "../../types/fleet";
+import { Search, RefreshCw, AlertCircle, CheckCircle2, Wrench, ShieldAlert } from "lucide-react";
 
 interface VehicleTableWidgetProps {
   vehicles: Vehicle[];
   isFallback: boolean;
+  loading?: boolean;
   onRefresh?: () => void;
 }
 
-export function VehicleTableWidget({ vehicles, isFallback, onRefresh }: VehicleTableWidgetProps) {
+export function VehicleTableWidget({
+  vehicles,
+  isFallback,
+  loading: _loading,
+  onRefresh,
+}: VehicleTableWidgetProps) {
   const [filter, setFilter] = useState<string>("all");
   const [search, setSearch] = useState<string>("");
 
@@ -27,28 +34,28 @@ export function VehicleTableWidget({ vehicles, isFallback, onRefresh }: VehicleT
     switch (status) {
       case "active":
         return (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-400 border border-emerald-500/30">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/30">
+            <CheckCircle2 className="h-3 w-3" />
             On-Road
           </span>
         );
       case "maintenance":
         return (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-amber-400 border border-amber-500/30">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/30">
+            <Wrench className="h-3 w-3" />
             Maintenance
           </span>
         );
       case "critical_failure":
         return (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-rose-400 border border-rose-500/30 animate-pulse">
-            <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-0.5 text-[11px] font-semibold text-rose-700 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/30 animate-pulse">
+            <ShieldAlert className="h-3 w-3" />
             Critical Fault
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-800 px-2.5 py-0.5 text-[11px] font-semibold text-slate-400 border border-slate-700">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
             <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
             Inactive
           </span>
@@ -57,44 +64,49 @@ export function VehicleTableWidget({ vehicles, isFallback, onRefresh }: VehicleT
   };
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900 shadow-sm overflow-hidden">
-      {/* Table Header Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 p-4 bg-slate-900/80">
+    <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden dark:border-slate-800 dark:bg-slate-900 transition-colors">
+      {/* Widget Header & Controls */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 p-4 dark:border-slate-800">
         <div>
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-white text-sm">Asset & Vehicle Telematics</h3>
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            Vehicle Fleet Registry
             {isFallback && (
-              <span className="rounded bg-slate-800 px-2 py-0.5 text-[10px] text-amber-400 font-mono border border-amber-500/30">
-                Fallback Cache
+              <span className="text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300 px-1.5 py-0.5 rounded font-medium border border-amber-200 dark:border-amber-500/30">
+                Fallback Sync
               </span>
             )}
-          </div>
-          <p className="text-xs text-slate-400 mt-0.5">Real-time status, odometry, and fuel telematics data grid</p>
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Live telematics, odometer readings and health status
+          </p>
         </div>
 
         <div className="flex items-center gap-2">
           {/* Search box */}
           <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Search plate, VIN, model..."
+              placeholder="Filter by plate, vin..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-8 w-48 sm:w-56 rounded-lg bg-slate-950 px-3 text-xs text-slate-200 placeholder-slate-500 border border-slate-700 focus:border-emerald-500 focus:outline-none"
+              className="h-8 rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-2.5 text-xs text-slate-800 placeholder-slate-400 outline-none transition focus:border-blue-500 focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:placeholder-slate-500 dark:focus:border-blue-500 dark:focus:bg-slate-900"
             />
           </div>
 
-          {/* Filter pills */}
-          <div className="flex items-center rounded-lg bg-slate-950 p-0.5 border border-slate-800 text-xs">
-            {["all", "active", "maintenance", "critical_failure"].map((type) => (
+          {/* Status filter tabs */}
+          <div className="flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 dark:border-slate-800 dark:bg-slate-950">
+            {["all", "active", "maintenance", "critical_failure"].map((f) => (
               <button
-                key={type}
-                onClick={() => setFilter(type)}
-                className={`rounded px-2.5 py-1 text-[11px] font-medium capitalize transition-all ${
-                  filter === type ? "bg-slate-800 text-white shadow" : "text-slate-400 hover:text-slate-200"
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-2.5 py-1 text-[11px] font-medium rounded-md capitalize transition ${
+                  filter === f
+                    ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white"
+                    : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                 }`}
               >
-                {type === "all" ? "All" : type === "critical_failure" ? "Fault" : type}
+                {f === "all" ? "All" : f === "critical_failure" ? "Fault" : f}
               </button>
             ))}
           </div>
@@ -102,109 +114,104 @@ export function VehicleTableWidget({ vehicles, isFallback, onRefresh }: VehicleT
           {onRefresh && (
             <button
               onClick={onRefresh}
-              title="Refresh Vehicle Data"
-              className="h-8 w-8 flex items-center justify-center rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 transition"
+              aria-label="Refresh table"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
             >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
+              <RefreshCw className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
       </div>
 
-      {/* High Information Density Table */}
+      {/* Table Content */}
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs">
-          <thead className="border-b border-slate-800 bg-slate-950/70 text-[11px] uppercase tracking-wider text-slate-400">
+          <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:bg-slate-950/60 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
             <tr>
-              <th className="px-4 py-3 font-semibold">Plate & Model</th>
-              <th className="px-4 py-3 font-semibold">VIN</th>
-              <th className="px-4 py-3 font-semibold">Status</th>
-              <th className="px-4 py-3 font-semibold">Odometry</th>
-              <th className="px-4 py-3 font-semibold">Fuel Level</th>
-              <th className="px-4 py-3 font-semibold">Speed</th>
-              <th className="px-4 py-3 font-semibold">Current Location</th>
+              <th className="px-4 py-3">Vehicle / Plate</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Type</th>
+              <th className="px-4 py-3">Odometer</th>
+              <th className="px-4 py-3">Health / Battery</th>
+              <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/60 font-sans">
+          <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
             {filteredVehicles.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
-                  No vehicles matching the filter criteria.
+                <td colSpan={6} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <AlertCircle className="h-6 w-6 text-slate-400" />
+                    <span>No vehicles matched your search filter</span>
+                  </div>
                 </td>
               </tr>
             ) : (
-              filteredVehicles.map((vehicle) => {
-                const fuel = vehicle.telematicsData?.fuelLevelPercent ?? 0;
-                const fuelColor = fuel > 50 ? "bg-emerald-500" : fuel > 20 ? "bg-amber-500" : "bg-rose-500";
-
+              filteredVehicles.map((v) => {
+                const voltage = v.telematicsData?.batteryVoltage ?? 12.6;
                 return (
-                  <tr key={vehicle._id} className="hover:bg-slate-800/40 transition-colors">
-                    {/* Plate & Model */}
+                  <tr
+                    key={v._id || v.id || v.vin}
+                    className="transition hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
+                  >
                     <td className="px-4 py-3.5">
-                      <div className="font-bold text-white font-mono text-sm tracking-wide">
-                        {vehicle.plateNumber}
-                      </div>
-                      <div className="text-[11px] text-slate-400">
-                        {vehicle.make} {vehicle.model} ({vehicle.year})
-                      </div>
-                    </td>
-
-                    {/* VIN */}
-                    <td className="px-4 py-3.5 font-mono text-[11px] text-slate-300">
-                      {vehicle.vin}
-                    </td>
-
-                    {/* Status Badge */}
-                    <td className="px-4 py-3.5">
-                      {getStatusBadge(vehicle.status)}
-                    </td>
-
-                    {/* Odometry */}
-                    <td className="px-4 py-3.5">
-                      <div className="font-semibold text-slate-200">
-                        {vehicle.telematicsData?.odometerKm.toLocaleString()} km
-                      </div>
-                      <div className="text-[10px] text-slate-400">
-                        {vehicle.telematicsData?.engineHours} hrs engine
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-700 font-bold dark:bg-blue-500/10 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">
+                          {v.plateNumber.slice(0, 3)}
+                        </div>
+                        <div>
+                          <div className="font-semibold text-slate-900 dark:text-white">
+                            {v.plateNumber}
+                          </div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                            {v.year} {v.make} {v.model}
+                          </div>
+                        </div>
                       </div>
                     </td>
 
-                    {/* Fuel Level */}
+                    <td className="px-4 py-3.5">{getStatusBadge(v.status)}</td>
+
+                    <td className="px-4 py-3.5 capitalize text-slate-700 dark:text-slate-300">
+                      {v.type}
+                    </td>
+
+                    <td className="px-4 py-3.5 font-mono text-slate-700 dark:text-slate-300">
+                      {(v.telematicsData?.odometerKm ?? 0).toLocaleString()} km
+                    </td>
+
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-2">
-                        <div className="h-1.5 w-16 rounded-full bg-slate-800 overflow-hidden">
-                          <div className={`h-full rounded-full ${fuelColor}`} style={{ width: `${fuel}%` }} />
+                        <div className="h-1.5 w-16 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                          <div
+                            className={`h-full ${
+                              voltage > 13
+                                ? "bg-emerald-500"
+                                : voltage > 12
+                                ? "bg-amber-500"
+                                : "bg-rose-500"
+                            }`}
+                            style={{
+                              width: `${Math.min(
+                                100,
+                                Math.max(10, (voltage / 14) * 100)
+                              )}%`,
+                            }}
+                          />
                         </div>
-                        <span className="font-mono text-xs font-semibold text-slate-200">{fuel}%</span>
+                        <span className="font-mono text-[11px] text-slate-600 dark:text-slate-400">
+                          {voltage.toFixed(1)}V
+                        </span>
                       </div>
-                      {vehicle.telematicsData?.batteryVoltage && (
-                        <div className="text-[10px] text-slate-400 mt-0.5">
-                          {vehicle.telematicsData.batteryVoltage}V battery
-                        </div>
-                      )}
                     </td>
 
-                    {/* Speed */}
-                    <td className="px-4 py-3.5">
-                      <div className="font-mono font-semibold text-slate-200">
-                        {vehicle.telematicsData?.currentSpeedKmh ?? 0} km/h
-                      </div>
-                      <div className="text-[10px] text-slate-400">
-                        {(vehicle.telematicsData?.currentSpeedKmh ?? 0) > 0 ? "Moving" : "Stationary"}
-                      </div>
-                    </td>
-
-                    {/* Current Location */}
-                    <td className="px-4 py-3.5 text-slate-300 max-w-[200px]">
-                      <div className="truncate font-medium">
-                        {vehicle.telematicsData?.location?.address || "Coordinates logged"}
-                      </div>
-                      <div className="font-mono text-[10px] text-slate-400">
-                        {vehicle.telematicsData?.location?.latitude?.toFixed(4)},{" "}
-                        {vehicle.telematicsData?.location?.longitude?.toFixed(4)}
-                      </div>
+                    <td className="px-4 py-3.5 text-right">
+                      <button
+                        type="button"
+                        className="font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 text-xs"
+                      >
+                        Inspect
+                      </button>
                     </td>
                   </tr>
                 );
@@ -212,25 +219,6 @@ export function VehicleTableWidget({ vehicles, isFallback, onRefresh }: VehicleT
             )}
           </tbody>
         </table>
-      </div>
-
-      {/* Table Footer */}
-      <div className="flex items-center justify-between border-t border-slate-800 px-4 py-3 bg-slate-950/60 text-xs text-slate-400">
-        <div>
-          Showing <span className="font-semibold text-slate-200">{filteredVehicles.length}</span> of{" "}
-          <span className="font-semibold text-slate-200">{vehicles.length}</span> assets
-        </div>
-        <div className="flex items-center gap-4 text-[11px]">
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" /> Active
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-amber-500" /> Maintenance
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-rose-500" /> Critical
-          </span>
-        </div>
       </div>
     </div>
   );

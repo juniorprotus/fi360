@@ -1,15 +1,76 @@
-# Project Architecture
+# Architecture – Fleet Intelligence 360 (FI360)
 
-## Tech Stack (Zero-Cost, Modular Deployment)
-*   **Frontend (Dashboard Ecosystem):** Next.js (App Router), React, Tailwind CSS. Deployed on **Vercel**. The UI will be modular, loading specific dashboards based on enabled features.
-*   **Backend (Micro-Monolith/Modular APIs):** Node.js / Express.js deployed on **Render** (Web Service Free Tier).
-    *   *Anti-Hibernation Strategy:* A `GET /api/health` endpoint pinged every 14 minutes by a free cron service ensures the fleet intelligence engine never spins down.
-    *   *Connectable Design:* Each module (e.g., `/api/fuel`, `/api/maintenance`) will have strict, versioned API contracts so they can function independently.
-*   **Database:** **MongoDB Atlas (M0 Free Cluster)**. Offers the document flexibility needed for varied fleet data (a tyre schema is very different from a driver schema) with no inactivity pauses.
-*   **AI Engine:** **Google Gemini API**. Used for interpreting unstructured workshop notes, forecasting maintenance, and predictive fleet analytics on the free tier.
+## Core Principle
+**Standalone but Connectable**
 
-## Core Data Models (MongoDB)
-*   **Organization:** `_id`, `name`, `enabledModules` (array of active FI360 modules).
-*   **Asset/Vehicle:** `_id`, `type`, `status`, `telematicsData`, `metrics`.
-*   **Driver:** `_id`, `licenseDetails`, `performanceScore`.
-*   **MaintenanceLog:** `_id`, `assetId`, `type`, `cost`, `aiPredictionRef`.
+Each module owns its domain data and business logic.  
+Modules communicate only through well-defined service interfaces / REST APIs.  
+No direct cross-collection database joins that bypass domain logic.
+
+## Recommended Tech Stack
+**Frontend**
+- Next.js 15 (App Router) + TypeScript
+- Tailwind CSS + shadcn/ui
+- next-themes (Light / Dark / System)
+- React Hook Form + Zod
+- TanStack Query
+- Lucide React icons
+- Sonner (toasts)
+
+**Backend**
+- Node.js + Express (or NestJS later)
+- MongoDB Atlas (or PostgreSQL later for stronger relational needs)
+- Zod validation on all incoming data
+- JWT / Session-based auth with multi-tenant support
+
+**Infrastructure (current)**
+- Frontend: Vercel
+- Backend: Render (or Railway / Fly.io)
+- Database: MongoDB Atlas
+- AI: Google Gemini (for predictive maintenance & intelligent features)
+
+> Note: Free-tier limitations are acceptable during early development, but the architecture must not depend on them. The system should be ready to move to paid infrastructure without code rewrites.
+
+## Project Structure (Frontend)
+
+src/
+├── app/
+│   ├── (marketing)/          # Landing page, pricing, etc.
+│   ├── (auth)/               # Login, register, etc.
+│   ├── (dashboard)/          # Protected app
+│   │   ├── fleet/
+│   │   ├── drivers/
+│   │   ├── workshop/
+│   │   ├── tyres/
+│   │   ├── fuel/
+│   │   ├── inspections/
+│   │   ├── transport/
+│   │   ├── costs/
+│   │   ├── analytics/
+│   │   └── settings/
+│   └── api/                  # Next.js API routes (or proxy to Express)
+├── components/
+│   ├── ui/                   # shadcn components
+│   ├── layout/               # Sidebar, Topbar, ThemeToggle
+│   └── modules/              # Module-specific components
+├── lib/
+│   ├── api/                  # API clients
+│   ├── validations/          # Shared Zod schemas
+│   └── utils/
+└── modules/                  # Domain logic & types per module
+
+## Data Ownership
+Each module owns its collections / tables.  
+References to other modules use IDs only.  
+Cross-module data is fetched via service methods (e.g. `vehicleService.getById()`).
+
+## Theme Engine
+- `next-themes` with `class` strategy
+- ThemeToggle in the global Topbar
+- All components must support both light and dark variants
+- Preference is persisted
+
+## Security & Multi-tenancy
+- Every record belongs to a `tenantId` / `organizationId`
+- Strict RBAC (roles: Owner, Admin, Manager, Technician, Driver, Viewer)
+- Audit logs for critical actions

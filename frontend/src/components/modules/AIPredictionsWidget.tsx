@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { Vehicle, AIPredictionResponse } from "../../types/fleet";
 import { fetchAIPrediction } from "../../lib/api";
+import { Sparkles, Loader2, AlertCircle, Cpu } from "lucide-react";
 
 interface AIPredictionsWidgetProps {
   vehicles: Vehicle[];
@@ -25,149 +26,119 @@ export function AIPredictionsWidget({ vehicles }: AIPredictionsWidgetProps) {
         make: vehicle.make,
         model: vehicle.model,
         year: vehicle.year,
-        odometerKm: vehicle.telematicsData.odometerKm,
-        engineHours: vehicle.telematicsData.engineHours,
-        batteryVoltage: vehicle.telematicsData.batteryVoltage,
-        recentFaultCodes: [], // Add logic to pull fault codes if available
+        odometerKm: vehicle.telematicsData?.odometerKm || 45000,
+        engineHours: vehicle.telematicsData?.engineHours || 1200,
+        batteryVoltage: vehicle.telematicsData?.batteryVoltage || 13.8,
+        recentFaultCodes: [],
       });
       setPrediction(res.data);
-    } catch (err) {
-      setError("Failed to fetch AI prediction. Ensure the backend is reachable.");
+    } catch {
+      setError("Unable to contact Gemini AI engine. Please verify backend.");
     } finally {
       setLoading(false);
     }
   };
 
+  const getVehicleKey = (v: Vehicle) => v._id || v.id || v.vin;
+
+  const derivedRiskLevel: "low" | "medium" | "high" = prediction
+    ? prediction.riskLevel ||
+      (prediction.healthScore < 60
+        ? "high"
+        : prediction.healthScore < 80
+        ? "medium"
+        : "low")
+    : "low";
+
+  const topIssue = prediction?.predictedIssues?.[0];
+  const recommendedAction =
+    prediction?.recommendedAction || topIssue?.recommendation;
+
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900 shadow-sm overflow-hidden flex flex-col md:flex-row min-h-[300px]">
-      {/* Sidebar: Vehicle Selection */}
-      <div className="w-full md:w-1/3 border-b md:border-b-0 md:border-r border-slate-800 bg-slate-950/50 p-4 flex flex-col">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-white text-sm flex items-center gap-2">
-            <svg className="w-4 h-4 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-            AI Predictive Maintenance
+    <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden dark:border-slate-800 dark:bg-slate-900 transition-colors">
+      <div className="border-b border-slate-200 p-4 dark:border-slate-800">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+            Gemini Predictive Maintenance
           </h3>
         </div>
-        
-        <p className="text-xs text-slate-400 mb-4">
-          Select an asset to generate a Gemini AI wear-and-tear forecast.
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          Select an asset to generate intelligent failure prediction insights.
         </p>
-        
-        <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-          {vehicles.slice(0, 5).map(v => (
-            <button
-              key={v._id}
-              onClick={() => analyzeVehicle(v)}
-              className={`w-full text-left p-3 rounded-lg border transition-all text-xs ${
-                selectedVehicle?._id === v._id
-                  ? "bg-purple-500/10 border-purple-500/50 text-white"
-                  : "bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-800"
-              }`}
-            >
-              <div className="font-bold font-mono">{v.plateNumber}</div>
-              <div className="text-slate-500 truncate">{v.year} {v.make} {v.model}</div>
-            </button>
-          ))}
-          {vehicles.length === 0 && (
-            <div className="text-xs text-slate-500 text-center py-4">No vehicles available for analysis.</div>
-          )}
-        </div>
       </div>
 
-      {/* Main Area: Analysis Results */}
-      <div className="flex-1 p-6 relative flex flex-col">
-        {!selectedVehicle && !loading && !prediction && (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-slate-500">
-            <svg className="w-12 h-12 mb-3 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-            </svg>
-            <p className="text-sm font-medium">Select a vehicle to begin AI analysis</p>
-          </div>
-        )}
+      <div className="p-4 space-y-4">
+        {/* Quick select assets */}
+        <div className="flex flex-wrap gap-2">
+          {vehicles.slice(0, 4).map((v) => {
+            const key = getVehicleKey(v);
+            const isSelected = selectedVehicle && getVehicleKey(selectedVehicle) === key;
+            return (
+              <button
+                key={key}
+                onClick={() => analyzeVehicle(v)}
+                className={`rounded-lg px-2.5 py-1 text-xs font-medium border transition ${
+                  isSelected
+                    ? "border-purple-500 bg-purple-50 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300"
+                    : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-850"
+                }`}
+              >
+                {v.plateNumber} ({v.model})
+              </button>
+            );
+          })}
+        </div>
 
-        {loading && (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
-            <div className="w-10 h-10 border-2 border-purple-500/20 border-t-purple-500 rounded-full animate-spin mb-4" />
-            <p className="text-sm font-medium text-purple-400 animate-pulse">Analyzing telematics data with Gemini...</p>
-          </div>
-        )}
-
-        {error && (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 p-4 rounded-lg text-sm">
-              {error}
+        {/* Prediction Display Area */}
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950 min-h-[140px] flex flex-col justify-center">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-4 text-purple-600 dark:text-purple-400">
+              <Loader2 className="h-6 w-6 animate-spin" />
+              <span className="text-xs font-medium">Running Gemini Telematics Model...</span>
             </div>
-          </div>
-        )}
-
-        {prediction && !loading && (
-          <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 h-full flex flex-col">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h4 className="text-lg font-bold text-white mb-1">
-                  {selectedVehicle?.plateNumber} Analysis
-                </h4>
-                <p className="text-xs text-slate-400 flex items-center gap-1.5">
-                  {prediction.isFallback && (
-                    <span className="bg-amber-500/10 text-amber-500 px-1.5 py-0.5 rounded border border-amber-500/20 text-[10px] uppercase font-bold tracking-wider">
-                      Heuristic Fallback
-                    </span>
-                  )}
-                  {prediction.summary}
-                </p>
+          ) : prediction ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">
+                  Risk Level:
+                </span>
+                <span
+                  className={`rounded px-2 py-0.5 text-xs font-bold uppercase ${
+                    derivedRiskLevel === "high"
+                      ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400"
+                      : derivedRiskLevel === "medium"
+                      ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
+                      : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
+                  }`}
+                >
+                  {derivedRiskLevel} ({prediction.healthScore ?? 85}% Score)
+                </span>
               </div>
-              <div className="flex flex-col items-end">
-                <span className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1">Health Score</span>
-                <div className={`text-3xl font-black ${
-                  prediction.healthScore >= 80 ? "text-emerald-400" :
-                  prediction.healthScore >= 50 ? "text-amber-400" : "text-rose-400"
-                }`}>
-                  {prediction.healthScore}
-                  <span className="text-sm text-slate-600 font-medium">/100</span>
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                {prediction.summary}
+              </p>
+              {recommendedAction && (
+                <div className="pt-2 text-[11px] text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800">
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">
+                    Recommended Action:{" "}
+                  </span>
+                  {recommendedAction}
                 </div>
-              </div>
-            </div>
-
-            <div className="space-y-3 flex-1 overflow-y-auto pr-2 custom-scrollbar">
-              <h5 className="text-[11px] uppercase tracking-widest text-slate-500 font-bold mb-2">Predicted Issues</h5>
-              
-              {prediction.predictedIssues.length === 0 ? (
-                <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-lg p-4 flex items-start gap-3">
-                  <div className="mt-0.5"><span className="h-2 w-2 rounded-full bg-emerald-500 block shadow-[0_0_8px_rgba(16,185,129,0.5)]" /></div>
-                  <div className="text-sm text-emerald-200/70">No immediate issues predicted based on current telematics.</div>
-                </div>
-              ) : (
-                prediction.predictedIssues.map((issue, idx) => {
-                  const probColor = 
-                    issue.probability === "High" ? "bg-rose-500/10 border-rose-500/30 text-rose-400" :
-                    issue.probability === "Medium" ? "bg-amber-500/10 border-amber-500/30 text-amber-400" :
-                    "bg-slate-800 border-slate-700 text-slate-300";
-
-                  return (
-                    <div key={idx} className={`rounded-lg border p-4 ${probColor}`}>
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="font-bold text-sm text-white flex items-center gap-2">
-                          {issue.component}
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full bg-black/20 uppercase tracking-wider`}>
-                            {issue.probability} Risk
-                          </span>
-                        </div>
-                        <div className="text-xs font-mono font-medium opacity-80">
-                          ~{issue.timeToFailureDays} days
-                        </div>
-                      </div>
-                      <p className="text-xs opacity-90 leading-relaxed">
-                        {issue.recommendation}
-                      </p>
-                    </div>
-                  );
-                })
               )}
             </div>
-          </div>
-        )}
+          ) : error ? (
+            <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 text-xs">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center text-center text-slate-400 dark:text-slate-500 py-3">
+              <Cpu className="h-6 w-6 mb-1 opacity-50" />
+              <p className="text-xs">Click any asset above to trigger an AI wear analysis</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

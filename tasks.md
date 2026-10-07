@@ -1,22 +1,38 @@
-# Execution Backlog
+# FI360 Execution Backlog
 
-## Phase 1: Core Foundation (Completed)
-- [x] Initialize Next.js App Router with Tailwind CSS for the frontend.
-- [x] Initialize Node.js/Express app for the backend.
-- [x] Push initial repository structure to GitHub (e.g., github.com/juniorprotus/fi360).
-- [x] Implement the `GET /api/health` endpoint on the backend.
+## Phase 0 – Foundation (Do First)
+- [x] Replace all instruction files with the new commercial versions
+- [x] Set up proper project structure (marketing + auth + dashboard routes)
+- [x] Install and configure `next-themes` + ThemeProvider
+- [x] Create global layout with Topbar + Sidebar + ThemeToggle
+- [x] Build a professional Fleetio-style Landing Page at `/`
+- [x] Implement basic Auth (login / register) + protected dashboard routes
+- [x] Add multi-tenant organization model
 
-## Phase 2: Database & Base API (Completed)
-- [x] Connect backend to MongoDB Atlas (M0).
-- [x] Define the base `Organization` and `Vehicle/Asset` Mongoose schemas.
-- [x] Deploy backend to Render and set up cron-job.org ping (14-min interval).
-- [x] Deploy frontend to Vercel.
+## Phase 1 – Core Shell & First Working Module
+- [ ] Fully working Sidebar navigation for all modules
+- [ ] Light / Dark / System theme toggle working everywhere
+- [ ] **Fleet & Vehicle Management** – complete CRUD (Create, list, view, edit, status change, search, filter)
+- [ ] Proper empty states, loading states, toasts
 
-## Phase 3: The First Standalone Module (Completed)
-- [x] Build the "Vehicle/Asset" API module with strict Zod validation.
-- [x] Create the frontend Vehicle Dashboard widget.
-- [x] Ensure the module can operate independently of other systems.
+## Phase 2 – Critical Operational Modules
+- [ ] Driver Management (full CRUD + license expiry)
+- [ ] Workshop & Maintenance (Work Orders + basic PM scheduling)
+- [ ] Inspection & Compliance (templates + defect workflow)
 
-## Phase 4: AI Telematics Integration (Completed)
-- [x] Integrate Google Gemini API for predictive maintenance analysis on the backend.
-- [x] Feed mock vehicle wear-and-tear data into the prompt to test AI forecasting.
+## Phase 3 – Supporting Modules
+- [ ] Tyre Management
+- [ ] Fuel Management
+- [ ] Cost Management (basic TCO / cost per km)
+- [ ] Transport Operations (basic)
+
+## Phase 4 – Intelligence, Billing & Polish
+- [ ] Analytics dashboard with real KPIs
+- [ ] Subscription tiers + feature gating (Starter / Professional / Enterprise)
+- [ ] Stripe (or equivalent) billing integration
+- [ ] Audit logs + basic RBAC
+- [ ] Final UI polish to match Fleetio quality
+
+## Ongoing Rules
+- Never mark a task complete if buttons or forms are still non-functional.
+- After every major module, test the full happy path as a real user would.

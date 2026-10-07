@@ -17,6 +17,7 @@ export interface TelematicsData {
 
 export interface Vehicle {
   _id: string;
+  id?: string;
   vin: string;
   plateNumber: string;
   make: string;
@@ -60,5 +61,7 @@ export interface AIPredictionResponse {
   healthScore: number;
   predictedIssues: AIPredictionIssue[];
   summary: string;
+  riskLevel?: "low" | "medium" | "high";
+  recommendedAction?: string;
   isFallback?: boolean;
 }

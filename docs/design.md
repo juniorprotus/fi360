@@ -1,18 +1,41 @@
-# UI/UX Direction
+# Design System – FI360 (Fleetio-inspired)
 
-## Design Principles
-*   **Information Density:** Fleet managers need to see a lot of data at a glance. Use data tables, sparklines, and compact status badges.
-*   **Modular Interface:** The sidebar and dashboard widgets should dynamically adapt based on which FI360 modules the organization has activated.
-*   **Dark Mode Ready:** Command centers and logistics offices often prefer dark mode for continuous monitoring.
+## Overall Feel
+Clean, modern, professional SaaS — similar to Fleetio:
+- Spacious but information-dense where needed
+- High-quality typography and spacing
+- Clear hierarchy
+- Excellent empty states and loading states
+- Consistent status badges and action patterns
 
-## Design Tokens
-*   **Primary Brand:** `slate-800` (Professional, industrial feel).
-*   **Status Indicators:** 
-    *   `emerald-500` (On-road/Active)
-    *   `amber-500` (Maintenance due/Warning)
-    *   `rose-500` (Critical failure/Compliance breach).
-*   **Typography:** highly legible sans-serif (e.g., Inter or Roboto) for complex data grids.
+## Theme Tokens (Tailwind)
 
-## Component Standards
-*   **Data Grids:** Use robust table components with sorting, filtering, and pagination handled server-side.
-*   **API Fallbacks:** If one module's API fails, the UI should gracefully show a localized error state for that specific widget, not crash the whole dashboard.
+| Element              | Light Mode                  | Dark Mode                          |
+|----------------------|-----------------------------|------------------------------------|
+| Page Background      | `bg-slate-50`               | `dark:bg-slate-950`                |
+| Card / Panel         | `bg-white border-slate-200` | `dark:bg-slate-900 dark:border-slate-800` |
+| Primary Text         | `text-slate-900`            | `dark:text-slate-50`               |
+| Secondary Text       | `text-slate-500`            | `dark:text-slate-400`              |
+| Primary Button       | `bg-blue-600 hover:bg-blue-700` | Same (or slightly brighter)     |
+| Success              | Emerald                     | Emerald (darker bg)                |
+| Warning              | Amber                       | Amber                              |
+| Danger / Critical    | Rose / Red                  | Rose                               |
+
+## Required UI Patterns
+- Global Topbar + collapsible Sidebar (Fleetio-style)
+- Theme toggle (Light / Dark / System) always visible
+- Data tables with search, filters, column visibility, pagination
+- Slide-over or modal forms for Create / Edit
+- Toast feedback on every important action (`sonner`)
+- Loading spinners on buttons during mutations
+- Beautiful empty states with clear CTA
+- Status badges with consistent colors
+
+## Landing Page Style
+- Large, bold hero
+- Clear value proposition
+- Stats / social proof row
+- Feature / module cards
+- Pricing section with the three tiers
+- Strong final CTA
+- Fully responsive + theme support
