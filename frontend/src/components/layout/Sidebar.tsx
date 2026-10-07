@@ -100,14 +100,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               FI
             </div>
             <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-base font-bold tracking-tight text-slate-900 dark:text-white">
-                  FI360
-                </span>
-                <span className="rounded bg-blue-500/10 px-1.5 py-0.2 text-[10px] font-bold text-blue-600 dark:text-blue-400">
-                  {user?.plan?.toUpperCase() || "PRO"}
-                </span>
-              </div>
+              <span className="text-base font-bold tracking-tight text-slate-900 dark:text-white leading-none">
+                FI360
+              </span>
               <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
                 Fleet Intelligence OS
               </p>
