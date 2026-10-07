@@ -154,6 +154,20 @@ export class VehicleService {
   }
 
   /**
+   * Internal API contract: Delete vehicle
+   */
+  public static async delete(id: string): Promise<boolean> {
+    if (isDbConnected()) {
+      const result = await Vehicle.findByIdAndDelete(id);
+      return !!result;
+    }
+    const index = inMemoryVehicles.findIndex((v) => String(v._id) === id);
+    if (index === -1) return false;
+    inMemoryVehicles.splice(index, 1);
+    return true;
+  }
+
+  /**
    * Internal API contract: Count vehicles by status
    */
   public static async getStatusMetrics(): Promise<Record<string, number>> {

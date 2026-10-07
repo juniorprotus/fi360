@@ -27,7 +27,7 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      await login(email, "Owner", orgName);
+      await login(email, "owner", orgName);
       toast.success("14-Day Free Trial activated! Welcome to FI360.");
       router.push("/dashboard");
     } catch {

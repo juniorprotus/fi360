@@ -2,12 +2,13 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { UserRole, getDefaultRouteForRole, ROLE_CONFIGS } from "./rbac";
 
 export interface User {
   id: string;
   name: string;
   email: string;
-  role: "Owner" | "Admin" | "Manager" | "Technician" | "Driver" | "Viewer";
+  role: UserRole;
   organizationId: string;
   organizationName: string;
   plan: "Starter" | "Professional" | "Enterprise";
@@ -17,9 +18,10 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  login: (email: string, role?: User["role"], orgName?: string) => Promise<boolean>;
+  login: (email: string, role?: UserRole, orgName?: string) => Promise<{ success: boolean; redirectUrl: string }>;
   logout: () => void;
   isAuthenticated: boolean;
+  switchRole: (newRole: UserRole) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -28,7 +30,7 @@ const DEMO_USER: User = {
   id: "usr_demo_101",
   name: "Alex Sterling",
   email: "alex@metrologistics.com",
-  role: "Manager",
+  role: "fleet_manager",
   organizationId: "org_metro_global",
   organizationName: "Metro Fleet Logistics Ltd",
   plan: "Professional",
@@ -45,8 +47,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const storedToken = localStorage.getItem("fi360_auth_token");
       const storedUser = localStorage.getItem("fi360_auth_user");
       if (storedToken && storedUser) {
+        const parsed = JSON.parse(storedUser);
+        // Normalize role if legacy format was stored
+        const validRoles: UserRole[] = [
+          "owner", "admin", "fleet_manager", "workshop_manager",
+          "technician", "driver", "dispatcher", "compliance", "finance", "viewer"
+        ];
+        if (!validRoles.includes(parsed.role)) {
+          parsed.role = "fleet_manager";
+        }
         setToken(storedToken);
-        setUser(JSON.parse(storedUser));
+        setUser(parsed);
       }
     } catch (e) {
       console.error("Failed to restore auth session:", e);
@@ -57,16 +68,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (
     email: string,
-    role: User["role"] = "Manager",
+    role: UserRole = "fleet_manager",
     orgName: string = "Metro Fleet Logistics Ltd"
-  ): Promise<boolean> => {
+  ): Promise<{ success: boolean; redirectUrl: string }> => {
     setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 400)); // Simulating realistic handshake
+    await new Promise((resolve) => setTimeout(resolve, 300));
 
     const authUser: User = {
       ...DEMO_USER,
       email,
-      name: email.split("@")[0].replace(/[\._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) || "Operator",
+      name:
+        email.split("@")[0].replace(/[\._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) ||
+        ROLE_CONFIGS[role].label,
       role,
       organizationName: orgName,
     };
@@ -80,7 +93,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("fi360_auth_user", JSON.stringify(authUser));
 
     setIsLoading(false);
-    return true;
+    const redirectUrl = getDefaultRouteForRole(role);
+    return { success: true, redirectUrl };
+  };
+
+  const switchRole = (newRole: UserRole) => {
+    if (!user) return;
+    const updatedUser = { ...user, role: newRole };
+    setUser(updatedUser);
+    localStorage.setItem("fi360_auth_user", JSON.stringify(updatedUser));
+    const target = getDefaultRouteForRole(newRole);
+    router.push(target);
   };
 
   const logout = () => {
@@ -100,6 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         logout,
         isAuthenticated: !!user,
+        switchRole,
       }}
     >
       {children}

@@ -1,19 +1,27 @@
 "use client";
 
 import React, { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { isRouteAllowedForRole, getDefaultRouteForRole } from "@/lib/auth/rbac";
 import { Loader2 } from "lucide-react";
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.replace("/login");
+    if (!isLoading) {
+      if (!isAuthenticated) {
+        router.replace("/login");
+      } else if (user && !isRouteAllowedForRole(user.role, pathname)) {
+        // Redirect to user's assigned role landing page if accessing unauthorized module
+        const fallbackRoute = getDefaultRouteForRole(user.role);
+        router.replace(fallbackRoute);
+      }
     }
-  }, [isLoading, isAuthenticated, router]);
+  }, [isLoading, isAuthenticated, user, pathname, router]);
 
   if (isLoading) {
     return (
@@ -21,7 +29,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
         <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-6 shadow-lg dark:border-slate-800 dark:bg-slate-900">
           <Loader2 className="h-6 w-6 animate-spin text-blue-600 dark:text-blue-400" />
           <span className="text-sm font-semibold tracking-wide">
-            Verifying FI360 Session...
+            Authorizing FI360 Session...
           </span>
         </div>
       </div>

@@ -3,6 +3,8 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/lib/auth/AuthContext";
+import { ROLE_CONFIGS } from "@/lib/auth/rbac";
 import {
   Truck,
   Users,
@@ -19,6 +21,7 @@ import {
   Settings,
   Sparkles,
   LayoutDashboard,
+  LucideIcon,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -26,16 +29,32 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
+interface NavItem {
+  name: string;
+  href: string;
+  icon: LucideIcon;
+  badge?: string;
+}
+
+interface NavSection {
+  group: string;
+  items: NavItem[];
+}
+
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const { user } = useAuth();
+  const userRole = user?.role || "fleet_manager";
+  const allowedHrefs = ROLE_CONFIGS[userRole]?.allowedNavHrefs || [];
 
-  const navigationSections = [
+  const allNavigationSections: NavSection[] = [
     {
       group: "Core Operations",
       items: [
         { name: "Executive Overview", href: "/dashboard", icon: LayoutDashboard, badge: "Live" },
-        { name: "Vehicles & Assets", href: "/dashboard/fleet", icon: Truck, badge: "Mod 1" },
-        { name: "Driver Management", href: "/dashboard/drivers", icon: Users },
+        { name: "Vehicles & Assets", href: "/dashboard/fleet", icon: Truck },
+        { name: "Driver Operations", href: "/dashboard/drivers", icon: Users },
+        { name: "Driver Portal", href: "/dashboard/driver", icon: Users, badge: "Mobile" },
         { name: "Workshop & Repairs", href: "/dashboard/workshop", icon: Wrench },
         { name: "Inspections (eDVIR)", href: "/dashboard/inspections", icon: ClipboardCheck },
       ],
@@ -61,6 +80,16 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     },
   ];
 
+  // Filter sections and items based on the active role's allowed permissions
+  const filteredSections = allNavigationSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) =>
+        allowedHrefs.some((allowed) => item.href === allowed || item.href.startsWith(allowed + "/"))
+      ),
+    }))
+    .filter((section) => section.items.length > 0);
+
   const sidebarContent = (
     <div className="flex h-full flex-col justify-between border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 transition-colors duration-200">
       {/* Brand Header */}
@@ -76,7 +105,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                   FI360
                 </span>
                 <span className="rounded bg-blue-500/10 px-1.5 py-0.2 text-[10px] font-bold text-blue-600 dark:text-blue-400">
-                  ENTERPRISE
+                  {user?.plan?.toUpperCase() || "PRO"}
                 </span>
               </div>
               <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
@@ -86,9 +115,21 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           </Link>
         </div>
 
-        {/* Navigation list */}
-        <div className="space-y-6 px-3 py-4 max-h-[calc(100vh-140px)] overflow-y-auto">
-          {navigationSections.map((section) => (
+        {/* Role Badge Indicator */}
+        <div className="px-4 pt-3 pb-1">
+          <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-1.5 border border-slate-200/80 dark:bg-slate-950/60 dark:border-slate-800">
+            <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              Active Role
+            </span>
+            <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400">
+              {ROLE_CONFIGS[userRole]?.label || userRole}
+            </span>
+          </div>
+        </div>
+
+        {/* Navigation list filtered by role */}
+        <div className="space-y-6 px-3 py-3 max-h-[calc(100vh-170px)] overflow-y-auto">
+          {filteredSections.map((section) => (
             <div key={section.group}>
               <div className="px-3 mb-2 text-[10px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500">
                 {section.group}
@@ -142,15 +183,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         </div>
       </div>
 
-      {/* Footer / Architecture badge */}
+      {/* Footer / Tenant Details */}
       <div className="border-t border-slate-200 p-4 dark:border-slate-800">
-        <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-950/60">
+        <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-2.5 dark:border-slate-800 dark:bg-slate-950/60">
           <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700 dark:text-slate-300">
-            <span>FI360 Core Engine</span>
-            <span className="flex h-2 w-2 rounded-full bg-emerald-500" />
+            <span className="truncate">{user?.organizationName || "Metro Fleet"}</span>
+            <span className="flex h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
           </div>
-          <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
-            Standalone &amp; Connectable v2.1
+          <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+            Enterprise Fleet Intelligence
           </p>
         </div>
       </div>
@@ -159,16 +200,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   return (
     <>
-      {/* Desktop static sidebar */}
       <aside className="hidden w-64 flex-shrink-0 md:block">{sidebarContent}</aside>
 
-      {/* Mobile Drawer */}
       {isOpen && (
         <div className="fixed inset-0 z-50 flex md:hidden">
-          <div
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm"
-            onClick={onClose}
-          />
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
           <div className="relative z-50 w-72 max-w-xs">{sidebarContent}</div>
         </div>
       )}

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { ThemeToggle } from "./ThemeToggle";
+import { ROLE_CONFIGS, UserRole } from "@/lib/auth/rbac";
 import {
   Bell,
   Search,
@@ -10,8 +11,9 @@ import {
   LogOut,
   Building2,
   ShieldCheck,
-  Radio,
   Menu,
+  Check,
+  UserCheck,
 } from "lucide-react";
 
 interface TopbarProps {
@@ -19,9 +21,10 @@ interface TopbarProps {
   backendOnline?: boolean;
 }
 
-export function Topbar({ onToggleSidebar, backendOnline = true }: TopbarProps) {
-  const { user, logout } = useAuth();
+export function Topbar({ onToggleSidebar }: TopbarProps) {
+  const { user, logout, switchRole } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [roleSwitcherOpen, setRoleSwitcherOpen] = useState(false);
   const [clock, setClock] = useState("");
 
   useEffect(() => {
@@ -33,9 +36,22 @@ export function Topbar({ onToggleSidebar, backendOnline = true }: TopbarProps) {
     return () => clearInterval(timer);
   }, []);
 
+  const rolesList: UserRole[] = [
+    "owner",
+    "admin",
+    "fleet_manager",
+    "workshop_manager",
+    "technician",
+    "driver",
+    "dispatcher",
+    "compliance",
+    "finance",
+    "viewer",
+  ];
+
   return (
     <header className="sticky top-0 z-40 flex h-16 w-full items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur-md transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900/95 sm:px-6">
-      {/* Left section: mobile hamburger + brand/organization indicator */}
+      {/* Left section: mobile hamburger + tenant info */}
       <div className="flex items-center gap-3">
         {onToggleSidebar && (
           <button
@@ -59,47 +75,91 @@ export function Topbar({ onToggleSidebar, backendOnline = true }: TopbarProps) {
             </span>
           </div>
           <span className="ml-2 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-            {user?.plan || "PRO"}
+            {user?.plan?.toUpperCase() || "PRO"}
           </span>
         </div>
 
-        {/* Search quick bar */}
-        <div className="relative hidden sm:block md:w-64 lg:w-72">
+        {/* Global search bar */}
+        <div className="relative hidden sm:block md:w-56 lg:w-72">
           <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
           <input
             type="search"
-            placeholder="Search vehicles, VINs, work orders..."
+            placeholder="Search fleet assets, work orders..."
             className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-xs text-slate-800 placeholder-slate-400 outline-none transition focus:border-blue-500 focus:bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:border-blue-500 dark:focus:bg-slate-900"
           />
         </div>
       </div>
 
-      {/* Right section: System telemetry status, Live Clock, ThemeToggle, Notifications, User Profile */}
+      {/* Right section: Role switcher, Live clock, Theme toggle, Notifications, User profile */}
       <div className="flex items-center gap-2 sm:gap-3">
-        {/* Backend Connectivity Status */}
-        <div className="hidden sm:flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100/80 px-3 py-1 text-xs dark:border-slate-800 dark:bg-slate-950/70">
-          <span
-            className={`h-2 w-2 rounded-full ${
-              backendOnline
-                ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.7)]"
-                : "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.7)]"
-            }`}
-          />
-          <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">
-            {backendOnline ? "API Online" : "Degraded / Offline"}
-          </span>
+        {/* Role Quick Switcher for testing all 10 perspectives */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setRoleSwitcherOpen(!roleSwitcherOpen)}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-200 dark:hover:bg-slate-800"
+            title="Switch User Role"
+          >
+            <UserCheck className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+            <span className="hidden xl:inline text-slate-500 dark:text-slate-400">Role:</span>
+            <span className="font-semibold text-slate-900 dark:text-white">
+              {ROLE_CONFIGS[user?.role || "fleet_manager"]?.label}
+            </span>
+            <ChevronDown className="h-3 w-3 text-slate-400" />
+          </button>
+
+          {roleSwitcherOpen && (
+            <div className="absolute right-0 mt-2 w-64 rounded-xl border border-slate-200 bg-white py-2 shadow-xl dark:border-slate-800 dark:bg-slate-900 z-50">
+              <div className="px-3 py-1.5 border-b border-slate-100 dark:border-slate-800">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Switch Active Persona
+                </p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                  Dynamically test role-based dashboards &amp; navigation
+                </p>
+              </div>
+
+              <div className="max-h-64 overflow-y-auto py-1">
+                {rolesList.map((r) => {
+                  const isCurrent = user?.role === r;
+                  return (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => {
+                        setRoleSwitcherOpen(false);
+                        switchRole(r);
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left transition ${
+                        isCurrent
+                          ? "bg-blue-50 text-blue-700 font-semibold dark:bg-blue-950/40 dark:text-blue-300"
+                          : "text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60"
+                      }`}
+                    >
+                      <div>
+                        <div>{ROLE_CONFIGS[r].label}</div>
+                        <div className="text-[10px] text-slate-400 font-normal">
+                          {ROLE_CONFIGS[r].defaultRoute}
+                        </div>
+                      </div>
+                      {isCurrent && <Check className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Live Clock for operations center */}
-        <div className="hidden xl:flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-mono text-slate-600 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300">
-          <Radio className="h-3 w-3 text-blue-500 animate-pulse" />
+        {/* Live Clock */}
+        <div className="hidden lg:flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-mono text-slate-600 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300">
           <span>{clock || "00:00:00"} UTC</span>
         </div>
 
-        {/* Light / Dark Mode Toggle Button */}
+        {/* Theme Toggle (Light / Dark / System) */}
         <ThemeToggle />
 
-        {/* Notifications trigger */}
+        {/* Notifications */}
         <button
           type="button"
           aria-label="View notifications"
@@ -124,7 +184,7 @@ export function Topbar({ onToggleSidebar, backendOnline = true }: TopbarProps) {
                 {user?.name || "Alex Sterling"}
               </p>
               <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                {user?.role || "Fleet Manager"}
+                {ROLE_CONFIGS[user?.role || "fleet_manager"]?.label}
               </p>
             </div>
             <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
@@ -142,7 +202,7 @@ export function Topbar({ onToggleSidebar, backendOnline = true }: TopbarProps) {
                 <div className="mt-1.5 flex items-center gap-1.5">
                   <ShieldCheck className="h-3 w-3 text-emerald-500" />
                   <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-                    Role: {user?.role || "Manager"}
+                    {ROLE_CONFIGS[user?.role || "fleet_manager"]?.label}
                   </span>
                 </div>
               </div>

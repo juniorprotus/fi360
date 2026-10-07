@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
-import { ShieldCheck, ArrowRight, Loader2, Lock, Mail, Building } from "lucide-react";
+import { UserRole, ROLE_CONFIGS } from "@/lib/auth/rbac";
+import { ShieldCheck, ArrowRight, Loader2, Lock, Mail, Users } from "lucide-react";
 import { toast } from "sonner";
 
 export default function LoginPage() {
@@ -13,8 +14,21 @@ export default function LoginPage() {
   const { login } = useAuth();
   const [email, setEmail] = useState("alex@metrologistics.com");
   const [password, setPassword] = useState("password123");
-  const [role, setRole] = useState<"Owner" | "Admin" | "Manager" | "Technician">("Manager");
+  const [role, setRole] = useState<UserRole>("fleet_manager");
   const [loading, setLoading] = useState(false);
+
+  const rolesList: UserRole[] = [
+    "owner",
+    "admin",
+    "fleet_manager",
+    "workshop_manager",
+    "technician",
+    "driver",
+    "dispatcher",
+    "compliance",
+    "finance",
+    "viewer",
+  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,9 +39,9 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      await login(email, role, "Metro Fleet Logistics Ltd");
-      toast.success("Welcome back to FI360!");
-      router.push("/dashboard");
+      const result = await login(email, role, "Metro Fleet Logistics Ltd");
+      toast.success(`Welcome to FI360 (${ROLE_CONFIGS[role].label})`);
+      router.push(result.redirectUrl);
     } catch {
       toast.error("Authentication failed. Please check credentials.");
     } finally {
@@ -61,7 +75,7 @@ export default function LoginPage() {
               Sign in to FI360
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Enter your credentials to access your fleet command center.
+              Select your role profile to enter the dedicated command center.
             </p>
           </div>
 
@@ -102,18 +116,25 @@ export default function LoginPage() {
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Role Persona (RBAC Simulation)
+                Role Persona
               </label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as any)}
-                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="Manager">Fleet Operations Manager</option>
-                <option value="Admin">Tenant Administrator</option>
-                <option value="Owner">Organization Owner</option>
-                <option value="Technician">Workshop Technician</option>
-              </select>
+              <div className="relative">
+                <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <select
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as UserRole)}
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 pl-9 pr-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {rolesList.map((r) => (
+                    <option key={r} value={r}>
+                      {ROLE_CONFIGS[r].label} &rarr; ({ROLE_CONFIGS[r].defaultRoute})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                {ROLE_CONFIGS[role].description}
+              </p>
             </div>
 
             <div className="pt-2">
@@ -129,7 +150,7 @@ export default function LoginPage() {
                   </>
                 ) : (
                   <>
-                    <span>Sign In to Dashboard</span>
+                    <span>Enter {ROLE_CONFIGS[role].label}</span>
                     <ArrowRight className="h-4 w-4" />
                   </>
                 )}
@@ -153,7 +174,7 @@ export default function LoginPage() {
 
       {/* Footer */}
       <footer className="text-center py-4 text-xs text-slate-400 dark:text-slate-600">
-        © 2026 Fleet Intelligence 360 (FI360) – Commercial Fleet OS. All rights reserved.
+        &copy; 2026 Fleet Intelligence 360 (FI360) &ndash; Commercial Fleet OS. All rights reserved.
       </footer>
     </div>
   );

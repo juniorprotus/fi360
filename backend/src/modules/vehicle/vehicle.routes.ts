@@ -109,4 +109,22 @@ router.patch("/:id", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
+// DELETE /api/vehicles/:id - Delete vehicle
+router.delete("/:id", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const deleted = await VehicleService.delete(req.params.id);
+    if (!deleted) {
+      res.status(404).json({ success: false, message: "Vehicle not found" });
+      return;
+    }
+    res.json({ success: true, message: "Vehicle deleted successfully" });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete vehicle",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+});
+
 export const vehicleRoutes = router;
