@@ -10,6 +10,10 @@ import { driverRoutes } from "./modules/drivers/driver.routes";
 import { maintenanceRoutes } from "./modules/maintenance/maintenance.routes";
 import { organizationRoutes } from "./modules/organization/organization.routes";
 import { aiRoutes } from "./modules/ai/ai.routes";
+import { tyreRoutes } from "./modules/tyres/tyre.routes";
+import { fuelRoutes } from "./modules/fuel/fuel.routes";
+import { inspectionRoutes } from "./modules/inspections/inspection.routes";
+import { transportRoutes } from "./modules/transport/transport.routes";
 
 // Load .env file first
 dotenv.config();
@@ -99,6 +103,10 @@ app.use("/api/vehicles", vehicleRoutes);
 app.use("/api/drivers", driverRoutes);
 app.use("/api/maintenance", maintenanceRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/tyres", tyreRoutes);
+app.use("/api/fuel", fuelRoutes);
+app.use("/api/inspections", inspectionRoutes);
+app.use("/api/transport", transportRoutes);
 
 // 4. 404 Handler
 app.use((_req: Request, res: Response) => {

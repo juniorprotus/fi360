@@ -1,82 +1,111 @@
 "use client";
 
-import React, { useState } from "react";
-import Link from "next/link";
+import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import {
   Wrench,
-  Plus,
   Clock,
-  AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   Calendar,
-  Truck,
-  ArrowRight,
+  DollarSign,
+  Plus,
   Filter,
+  Truck,
+  Loader2,
+  X,
+  RotateCw,
 } from "lucide-react";
 import { toast } from "sonner";
-
-interface WorkOrder {
-  id: string;
-  orderNumber: string;
-  vehiclePlate: string;
-  vehicleModel: string;
-  issue: string;
-  priority: "low" | "medium" | "high" | "critical";
-  status: "open" | "in_progress" | "pending_parts" | "completed";
-  assignedTechnician: string;
-  dueDate: string;
-}
-
-const INITIAL_WORK_ORDERS: WorkOrder[] = [
-  {
-    id: "wo_101",
-    orderNumber: "WO-2026-089",
-    vehiclePlate: "KDD-109X",
-    vehicleModel: "Isuzu FRR 90",
-    issue: "Hydraulic lift cylinder seal leakage & differential oil renewal",
-    priority: "high",
-    status: "in_progress",
-    assignedTechnician: "James Wachira (Master Tech)",
-    dueDate: "2026-10-09",
-  },
-  {
-    id: "wo_102",
-    orderNumber: "WO-2026-090",
-    vehiclePlate: "KDA-553M",
-    vehicleModel: "Toyota Hilux D-4D",
-    issue: "Alternator low voltage failure & battery replacement",
-    priority: "critical",
-    status: "open",
-    assignedTechnician: "David Mwangi",
-    dueDate: "2026-10-08",
-  },
-  {
-    id: "wo_103",
-    orderNumber: "WO-2026-084",
-    vehiclePlate: "KBZ-482L",
-    vehicleModel: "Mercedes Actros 2645",
-    issue: "50,000 km Scheduled Preventive Maintenance (PM B)",
-    priority: "medium",
-    status: "completed",
-    assignedTechnician: "James Wachira (Master Tech)",
-    dueDate: "2026-10-05",
-  },
-];
+import { fetchWorkOrders, createWorkOrder, updateWorkOrderStatus, WorkOrderItem } from "@/lib/api";
 
 export default function WorkshopDashboardPage() {
   const { user } = useAuth();
-  const [orders, setOrders] = useState<WorkOrder[]>(INITIAL_WORK_ORDERS);
+  const [orders, setOrders] = useState<WorkOrderItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
 
-  const filteredOrders = orders.filter((o) => filter === "all" || o.status === filter);
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleStatusChange = (id: string, newStatus: WorkOrder["status"]) => {
-    setOrders((prev) =>
-      prev.map((o) => (o.id === id ? { ...o, status: newStatus } : o))
-    );
-    toast.success("Work Order status updated");
+  // Form State
+  const [formData, setFormData] = useState<WorkOrderItem>({
+    vehiclePlate: "KBZ-482L",
+    description: "Scheduled 50,000 km Major Service & Fluid Inspection",
+    type: "preventive_maintenance",
+    status: "scheduled",
+    priority: "medium",
+    cost: 480,
+    workshopNotes: "Inspect brake pads, transmission fluid, and alternator voltage.",
+    scheduledDate: new Date().toISOString().substring(0, 10),
+  });
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await fetchWorkOrders();
+      setOrders(data);
+    } catch {
+      toast.error("Failed to load workshop work orders");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const openCreateModal = () => {
+    setFormData({
+      vehiclePlate: "KBZ-482L",
+      description: "Pneumatic Air Valve Inspection & Brake Calibration",
+      type: "brake_system",
+      status: "scheduled",
+      priority: "high",
+      cost: 380,
+      workshopNotes: "Calibrate air valve on trailer brake circuit.",
+      scheduledDate: new Date().toISOString().substring(0, 10),
+    });
+    setIsModalOpen(true);
   };
+
+  const handleCreateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.description || !formData.vehiclePlate) {
+      toast.error("Please fill in description and vehicle plate");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const created = await createWorkOrder(formData);
+      setOrders((prev) => [created, ...prev]);
+      toast.success(`Work Order for ${created.vehiclePlate} registered`);
+      setIsModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create work order");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleStatusChange = async (id: string, newStatus: "scheduled" | "in_progress" | "completed") => {
+    try {
+      const ok = await updateWorkOrderStatus(id, newStatus);
+      if (ok) {
+        setOrders((prev) =>
+          prev.map((o) => ((o._id || o.id) === id ? { ...o, status: newStatus } : o))
+        );
+        toast.success(`Work Order status transitioned to ${newStatus.replace("_", " ")}`);
+      }
+    } catch {
+      toast.error("Failed to update work order status");
+    }
+  };
+
+  const filteredOrders = orders.filter((o) => filter === "all" || o.status === filter);
 
   return (
     <div className="space-y-6">
@@ -96,120 +125,296 @@ export default function WorkshopDashboardPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => toast.info("New Work Order modal available in full module view")}
-          className="flex items-center gap-1.5 rounded-lg bg-amber-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-amber-700"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          <span>Create Work Order</span>
-        </button>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={loadData}
+            disabled={loading}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <RotateCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            <span>Sync</span>
+          </button>
+
+          <button
+            onClick={openCreateModal}
+            className="flex items-center gap-1.5 rounded-lg bg-amber-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-amber-700"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>Create Work Order</span>
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Open Jobs</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Scheduled Jobs</span>
           <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
-            {orders.filter((o) => o.status === "open").length}
+            {orders.filter((o) => o.status === "scheduled").length}
           </div>
+          <span className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">Awaiting workshop bay</span>
         </div>
+
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">In Bay (Active)</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">In Progress (Bays Active)</span>
           <div className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">
             {orders.filter((o) => o.status === "in_progress").length}
           </div>
+          <span className="text-[11px] text-slate-500 font-medium">Technicians working</span>
         </div>
+
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Critical Priority</span>
-          <div className="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-1">
-            {orders.filter((o) => o.priority === "critical").length}
-          </div>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Completed This Week</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Completed Repairs</span>
           <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
             {orders.filter((o) => o.status === "completed").length}
           </div>
+          <span className="text-[11px] text-emerald-600 font-medium">Returned to operational service</span>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Maintenance Spend</span>
+          <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
+            ${orders.reduce((acc, o) => acc + (Number(o.cost) || 0), 0).toLocaleString()}
+          </div>
+          <span className="text-[11px] text-slate-500 font-medium">Reconciled service cost</span>
         </div>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900 w-fit">
-        {["all", "open", "in_progress", "completed"].map((tab) => (
+      {/* Tabs Filter */}
+      <div className="flex border-b border-slate-200 dark:border-slate-800 text-xs font-semibold">
+        {(["all", "scheduled", "in_progress", "completed"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setFilter(tab)}
-            className={`px-3 py-1 text-xs font-semibold rounded-md capitalize transition ${
+            className={`pb-3 px-4 capitalize transition border-b-2 -mb-px ${
               filter === tab
-                ? "bg-amber-600 text-white"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                ? "border-amber-600 text-amber-600 dark:border-amber-400 dark:text-amber-400"
+                : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
             }`}
           >
-            {tab.replace("_", " ")}
+            {tab.replace("_", " ")} ({orders.filter((o) => tab === "all" || o.status === tab).length})
           </button>
         ))}
       </div>
 
-      {/* Orders Table */}
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden dark:border-slate-800 dark:bg-slate-900">
-        <table className="w-full text-left text-xs">
-          <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:bg-slate-950/60 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
-            <tr>
-              <th className="px-4 py-3">Work Order #</th>
-              <th className="px-4 py-3">Vehicle</th>
-              <th className="px-4 py-3">Service Defect / Description</th>
-              <th className="px-4 py-3">Assigned Tech</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-            {filteredOrders.map((order) => (
-              <tr key={order.id} className="transition hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
-                <td className="px-4 py-3.5 font-mono font-bold text-slate-900 dark:text-white">
-                  {order.orderNumber}
-                </td>
-                <td className="px-4 py-3.5">
-                  <div className="font-semibold text-slate-900 dark:text-white">{order.vehiclePlate}</div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400">{order.vehicleModel}</div>
-                </td>
-                <td className="px-4 py-3.5 max-w-xs text-slate-700 dark:text-slate-300">
-                  {order.issue}
-                </td>
-                <td className="px-4 py-3.5 text-slate-600 dark:text-slate-400">
-                  {order.assignedTechnician}
-                </td>
-                <td className="px-4 py-3.5">
-                  <span
-                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-                      order.status === "completed"
-                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400"
-                        : order.status === "in_progress"
-                        ? "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400"
-                        : "bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400"
-                    }`}
-                  >
-                    {order.status === "completed" && <CheckCircle2 className="h-3 w-3" />}
-                    {order.status.replace("_", " ")}
-                  </span>
-                </td>
-                <td className="px-4 py-3.5 text-right">
-                  {order.status !== "completed" ? (
-                    <button
-                      onClick={() => handleStatusChange(order.id, "completed")}
-                      className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
-                    >
-                      Mark Done
-                    </button>
-                  ) : (
-                    <span className="text-slate-400 text-xs">Closed</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Orders List */}
+      <div className="space-y-3">
+        {loading ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-12 text-center text-slate-500 dark:border-slate-800 dark:bg-slate-900">
+            <Loader2 className="h-6 w-6 animate-spin mx-auto text-amber-600 mb-2" />
+            <p className="text-xs">Loading workshop job cards...</p>
+          </div>
+        ) : filteredOrders.length === 0 ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-16 text-center text-slate-500 dark:border-slate-800 dark:bg-slate-900">
+            <Wrench className="h-10 w-10 text-amber-600 mx-auto mb-3 opacity-60" />
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">No Work Orders Found</h3>
+            <p className="text-xs text-slate-500 mt-1 mb-4">No jobs currently match this status filter.</p>
+            <button
+              onClick={openCreateModal}
+              className="rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-4 py-2"
+            >
+              Create New Job Card
+            </button>
+          </div>
+        ) : (
+          filteredOrders.map((order) => {
+            const id = order._id || order.id || "";
+            return (
+              <div
+                key={id}
+                className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2.5">
+                      <span className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400">
+                        {order.vehiclePlate}
+                      </span>
+                      <span className="text-slate-300 dark:text-slate-700">&bull;</span>
+                      <h4 className="font-bold text-sm text-slate-900 dark:text-white">
+                        {order.description}
+                      </h4>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                          order.priority === "urgent"
+                            ? "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
+                            : order.priority === "high"
+                            ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                            : "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
+                        }`}
+                      >
+                        {order.priority}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {order.workshopNotes || "Inspection in progress."}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white font-mono">
+                        ${Number(order.cost || 0).toFixed(2)}
+                      </div>
+                      <div className="text-[11px] text-slate-400 capitalize">
+                        {order.status.replace("_", " ")}
+                      </div>
+                    </div>
+
+                    {order.status !== "completed" && (
+                      <div className="flex items-center gap-1.5">
+                        {order.status === "scheduled" && (
+                          <button
+                            onClick={() => handleStatusChange(id, "in_progress")}
+                            className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300"
+                          >
+                            Start Job
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleStatusChange(id, "completed")}
+                          className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
+                        >
+                          Mark Completed
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
+
+      {/* Create Work Order Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
+                  <Wrench className="h-4 w-4" />
+                </div>
+                <h3 className="font-bold text-slate-900 dark:text-white">
+                  Create Workshop Work Order
+                </h3>
+              </div>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateSubmit} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Vehicle Plate *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.vehiclePlate}
+                    onChange={(e) => setFormData({ ...formData, vehiclePlate: e.target.value.toUpperCase() })}
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Priority
+                  </label>
+                  <select
+                    value={formData.priority}
+                    onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent (Road Break-Down)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Task / Repair Description *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Maintenance Category
+                  </label>
+                  <select
+                    value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  >
+                    <option value="preventive_maintenance">Preventive Maintenance</option>
+                    <option value="brake_system">Brake System</option>
+                    <option value="engine_repair">Engine &amp; Powertrain</option>
+                    <option value="electrical_battery">Electrical &amp; Alternator</option>
+                    <option value="suspension">Suspension &amp; Pneumatics</option>
+                    <option value="emergency_repair">Emergency Repair</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Estimated Cost ($)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={formData.cost}
+                    onChange={(e) => setFormData({ ...formData, cost: Number(e.target.value) })}
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Workshop Technician Notes
+                </label>
+                <textarea
+                  rows={2}
+                  value={formData.workshopNotes}
+                  onChange={(e) => setFormData({ ...formData, workshopNotes: e.target.value })}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-amber-700 disabled:opacity-50"
+                >
+                  {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  <span>Dispatch Job Card</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

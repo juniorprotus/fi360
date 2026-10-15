@@ -224,7 +224,8 @@ export default function FleetVehiclesPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string | null) => {
+    if (!id) return;
     try {
       const success = await deleteVehicle(id);
       if (success) {

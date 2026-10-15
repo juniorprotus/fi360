@@ -12,6 +12,10 @@ export default function SettingsModulePage() {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    if (user) {
+      const updatedUser = { ...user, organizationName: orgName, email: billingContact };
+      localStorage.setItem("fi360_auth_user", JSON.stringify(updatedUser));
+    }
     toast.success("Organization preferences saved successfully");
   };
 

@@ -11,13 +11,36 @@ import {
   FileText,
   MapPin,
   Calendar,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { createInspection } from "@/lib/api";
 
 export default function DriverPortalPage() {
   const { user } = useAuth();
   const [completedPreTrip, setCompletedPreTrip] = useState(false);
-  const [fuelLogged, setFuelLogged] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSignPreTrip = async () => {
+    setSubmitting(true);
+    try {
+      await createInspection({
+        reportNumber: `EDVIR-DRV-${Math.floor(1000 + Math.random() * 9000)}`,
+        vehiclePlate: "KBZ-482L",
+        inspectorName: user?.name ? `${user.name} (Driver)` : "John Maina (Driver)",
+        type: "Pre-Trip Walkaround",
+        outcome: "passed",
+        defectsSummary: "Pre-trip certified: brakes, tyres, steering, and emergency gear fit for road.",
+        date: new Date().toISOString().replace("T", " ").substring(0, 16),
+      });
+      setCompletedPreTrip(true);
+      toast.success("eDVIR walkaround inspection signed & submitted to Safety Officer");
+    } catch {
+      toast.error("Failed to submit eDVIR audit");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -53,7 +76,7 @@ export default function DriverPortalPage() {
             </div>
           </div>
           <div className="text-right">
-            <div className="text-sm font-bold text-slate-900 dark:text-white">48,250 km</div>
+            <div className="text-sm font-bold text-slate-900 dark:text-white font-mono">48,250 km</div>
             <div className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Ready for Dispatch</div>
           </div>
         </div>
@@ -104,14 +127,12 @@ export default function DriverPortalPage() {
 
         <div className="mt-4 flex justify-end">
           <button
-            onClick={() => {
-              setCompletedPreTrip(true);
-              toast.success("eDVIR walkaround inspection submitted to Safety Officer");
-            }}
-            disabled={completedPreTrip}
-            className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 transition disabled:opacity-50"
+            onClick={handleSignPreTrip}
+            disabled={completedPreTrip || submitting}
+            className="flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 transition disabled:opacity-50"
           >
-            {completedPreTrip ? "Submitted for Departure" : "Sign & Complete Pre-Trip eDVIR"}
+            {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            <span>{completedPreTrip ? "Submitted for Departure" : "Sign & Complete Pre-Trip eDVIR"}</span>
           </button>
         </div>
       </div>
