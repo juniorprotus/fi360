@@ -20,6 +20,7 @@ import {
   BarChart3,
   Layers,
   ChevronRight,
+  ChevronLeft,
   Zap,
   Shield,
   ShieldCheck,
@@ -35,12 +36,12 @@ import {
   FileText,
   Check,
   ExternalLink,
-  Star,
 } from "lucide-react";
 
 export default function LandingPage() {
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("annual");
   const [activePersona, setActivePersona] = useState<"manager" | "tech" | "dispatcher" | "driver">("manager");
+  const [outcomeIndex, setOutcomeIndex] = useState(0);
 
   const personas = {
     manager: {
@@ -207,42 +208,81 @@ export default function LandingPage() {
     },
   ];
 
-  const customerLogos = [
+  const outcomeStories = [
     {
-      name: "APEX HAULAGE LOGISTICS",
-      type: "Heavy Transport",
+      id: "heavy-haulage",
+      name: "Apex Haulage Logistics",
+      industry: "Heavy Transport & Linehaul",
+      tag: "Heavy Transport",
+      stat: "$240,000",
+      statSubtitle: "Annual Unscheduled Repair Avoidance",
+      story:
+        "Apex Haulage automated preventative maintenance across 340 highway haulers, reducing roadside breakdowns by 41% and eliminating costly emergency linehaul tow bills.",
       image: "/images/industries/apex-haulage.jpg",
-      stat: "340+ Heavy Units",
-      detail: "Long-haul linehaul & commercial freight transport",
+      linkText: "Read haulage outcome story",
     },
     {
-      name: "VANGUARD COLD CHAIN",
-      type: "Refrigerated Freight",
+      id: "cold-chain",
+      name: "Vanguard Cold Chain",
+      industry: "Refrigerated Freight & Logistics",
+      tag: "Cold Chain Freight",
+      stat: "99.8%",
+      statSubtitle: "On-Time Temperature Audit Compliance",
+      story:
+        "Vanguard transitioned 160 refrigerated rigs to mobile eDVIR walkarounds, shaving 52 minutes off daily morning departures while maintaining continuous cold-chain compliance.",
       image: "/images/industries/vanguard-cold.jpg",
-      stat: "Cold Chain Logistics",
-      detail: "Temperature-controlled distribution & perishable transit",
+      linkText: "Read cold chain outcome story",
     },
     {
-      name: "TITAN INFRASTRUCTURE",
-      type: "Civil Equipment",
+      id: "civil-equipment",
+      name: "Titan Infrastructure",
+      industry: "Heavy Civil Works & Plant",
+      tag: "Heavy Civil Equipment",
+      stat: "-32%",
+      statSubtitle: "Reduction in Plant Idle-Fuel Burn",
+      story:
+        "Titan linked 180 excavators and earthmoving assets to automated engine-hour maintenance triggers, preventing premature hydraulic overhaul and cutting idle fuel waste.",
       image: "/images/industries/titan-civil.jpg",
-      stat: "Heavy Civil Plant",
-      detail: "Excavators, earthmoving plant & civil construction",
+      linkText: "Read equipment outcome story",
     },
     {
-      name: "METRO TRANSIT HUBS",
-      type: "Passenger Fleet",
+      id: "passenger-transit",
+      name: "Metro Transit Hubs",
+      industry: "Municipal Passenger Fleet",
+      tag: "Passenger Transit",
+      stat: "48 min",
+      statSubtitle: "Shaved Off Daily Morning Rollout",
+      story:
+        "Metro Transit unified 220 municipal buses into a single digital work order bay system, slashing out-of-service bus counts and improving passenger line punctuality.",
       image: "/images/industries/metro-transit.jpg",
-      stat: "Public Transit",
-      detail: "Urban passenger buses & regional shuttle fleet",
+      linkText: "Read transit outcome story",
     },
     {
-      name: "NEXUS INTERMODAL",
-      type: "Container Haulage",
+      id: "intermodal",
+      name: "Nexus Intermodal",
+      industry: "Port Container Drayage & Rail",
+      tag: "Container Haulage",
+      stat: "+26%",
+      statSubtitle: "Higher Weekly Container Turns",
+      story:
+        "Nexus synchronized port drayage dispatch with live vehicle roadworthiness status, eliminating gate-check rejections and boosting container throughput per tractor.",
       image: "/images/industries/nexus-intermodal.jpg",
-      stat: "Port & Intermodal",
-      detail: "Port drayage, container handling & maritime logistics",
+      linkText: "Read intermodal outcome story",
     },
+  ];
+
+  const handlePrevOutcome = () => {
+    setOutcomeIndex((prev) => (prev === 0 ? outcomeStories.length - 1 : prev - 1));
+  };
+
+  const handleNextOutcome = () => {
+    setOutcomeIndex((prev) => (prev + 1) % outcomeStories.length);
+  };
+
+  const displayedOutcomes = [
+    outcomeStories[outcomeIndex],
+    outcomeStories[(outcomeIndex + 1) % outcomeStories.length],
+    outcomeStories[(outcomeIndex + 2) % outcomeStories.length],
   ];
 
   return (
