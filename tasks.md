@@ -23,3 +23,16 @@
 - [x] Configured CSS variables and Tailwind v4 `@theme` mappings in [globals.css](file:///c:/Users/HP/OneDrive/Documents/FI360%20II/frontend/src/app/globals.css).
 - [x] Retained default light mode slate scale while overriding `.dark` tokens across canvas, surfaces, borders, text, and active elements.
 - [x] Verified with Turbopack production build (`next build` succeeded with 0 errors across 29 routes).
+
+## Commercial Landing Page Redesign
+- [x] Implemented mature B2B SaaS layout with soft green-gray hero gradient (`#eef3f0` to slate-50 / dark `#1b2320` to `#272829`).
+- [x] Added top slim announcement bar highlighting Gemini AI Predictive Maintenance.
+- [x] Relocated raw logo out of hero into navigation header and footer only.
+- [x] Authored outcome-driven hero copy: "Keep every vehicle moving. Fleet maintenance, under complete control." with commercial proof line.
+- [x] Built realistic, high-fidelity live product UI mockup (Work Order #WO-4092, Gemini AI Predictive Advisory, repair stage tracker, technician assignment, and floating downtime savings badge).
+- [x] Integrated horizontal outcome metric strip (99.4% Uptime, -38% Downtime, 2.4x Turnaround, $0.18/km Saved) and commercial transport customer badges.
+- [x] Replaced technical module cards with 6 business capability cards (Workshop, eDVIR, Gemini AI Diagnostics, Tyre Lifecycle, Fuel Telemetry, Fleet Registry).
+- [x] Built interactive "How Teams Run on FI360" persona switcher (Managers, Technicians, Dispatchers, Drivers).
+- [x] Converted monolithic code snippet architecture into a clean, business-first "Enterprise Connectivity & Scale" section (hardware agnostic, ERP sync, RBAC/SAML SSO).
+- [x] Added customer case studies with quantifiable outcomes and refined outcome-oriented pricing tiers.
+- [x] Compiled with Turbopack (`next build` passed with zero errors across all 29 routes).
