@@ -47,3 +47,9 @@
 - [x] Redesigned the 5-card horizontal layout with background image depth, cool desaturated grading (`grayscale-[35%] brightness-[0.38]`), and multi-layer dark gradient masks for 100% text legibility.
 - [x] Added sector badges, operational icons (`Truck`, `Activity`, `Wrench`, `Users`, `Layers`), fleet detail counters, and hover micro-animations.
 - [x] Verified full production build with Turbopack (29 routes static compilation passed).
+- [x] Upgraded image quality and clarity:
+  - Downloaded full 1200w high-resolution photography for all 5 sectors.
+  - Removed heavy muddy overlays: increased image brightness to 78% with natural contrast and saturation.
+  - Replaced full-card dark overlay with a soft, directional bottom gradient scrim strictly behind the typography.
+  - Increased card height to `min-h-[310px]`, opening up 65%+ of the card to prominent, vivid vehicle and equipment imagery.
+  - Removed all small icons/emojis from the top-right corner of each card and replaced star rating emojis in case studies with verified B2B deployment badges.

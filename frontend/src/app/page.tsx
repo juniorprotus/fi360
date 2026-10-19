@@ -213,40 +213,35 @@ export default function LandingPage() {
       type: "Heavy Transport",
       image: "/images/industries/apex-haulage.jpg",
       stat: "340+ Heavy Units",
-      detail: "Long-haul linehaul & freight transport",
-      icon: Truck,
+      detail: "Long-haul linehaul & commercial freight transport",
     },
     {
       name: "VANGUARD COLD CHAIN",
       type: "Refrigerated Freight",
       image: "/images/industries/vanguard-cold.jpg",
-      stat: "Temp Controlled",
-      detail: "Reefer transport & cold distribution",
-      icon: Activity,
+      stat: "Cold Chain Logistics",
+      detail: "Temperature-controlled distribution & perishable transit",
     },
     {
       name: "TITAN INFRASTRUCTURE",
       type: "Civil Equipment",
       image: "/images/industries/titan-civil.jpg",
       stat: "Heavy Civil Plant",
-      detail: "Excavation, earthmoving & site plant",
-      icon: Wrench,
+      detail: "Excavators, earthmoving plant & civil construction",
     },
     {
       name: "METRO TRANSIT HUBS",
       type: "Passenger Fleet",
       image: "/images/industries/metro-transit.jpg",
       stat: "Public Transit",
-      detail: "Urban buses & regional shuttle transit",
-      icon: Users,
+      detail: "Urban passenger buses & regional shuttle fleet",
     },
     {
       name: "NEXUS INTERMODAL",
       type: "Container Haulage",
       image: "/images/industries/nexus-intermodal.jpg",
       stat: "Port & Intermodal",
-      detail: "Container drayage & maritime logistics",
-      icon: Layers,
+      detail: "Port drayage, container handling & maritime logistics",
     },
   ];
 
@@ -620,52 +615,47 @@ export default function LandingPage() {
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            {customerLogos.map((client) => {
-              const Icon = client.icon;
-              return (
-                <div
-                  key={client.name}
-                  className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-800/90 bg-[#181a1d] p-4 min-h-[195px] shadow-lg shadow-black/50 transition-all duration-300 hover:border-slate-600 hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/70 cursor-pointer"
-                >
-                  {/* Realistic Industry Photography with Dark Desaturated Overlay */}
-                  <Image
-                    src={client.image}
-                    alt={client.name}
-                    fill
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 20vw"
-                    className="object-cover object-center filter grayscale-[35%] brightness-[0.38] contrast-[1.12] transition-transform duration-700 ease-out group-hover:scale-105 group-hover:brightness-[0.45]"
-                  />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 lg:gap-5">
+            {customerLogos.map((client) => (
+              <div
+                key={client.name}
+                className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-700/80 bg-[#141618] p-5 min-h-[290px] sm:min-h-[310px] shadow-xl shadow-black/50 transition-all duration-300 hover:border-slate-500 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-black/75 cursor-pointer"
+              >
+                {/* Clear, High-Resolution Industry Photography */}
+                <Image
+                  src={client.image}
+                  alt={client.name}
+                  fill
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 20vw"
+                  className="object-cover object-center filter brightness-[0.78] contrast-[1.08] saturate-[1.0] transition-all duration-700 ease-out group-hover:scale-105 group-hover:brightness-[0.86]"
+                />
 
-                  {/* Gradient Masks for 100% Text Legibility */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0b0d0e] via-[#0b0d0e]/75 to-[#0b0d0e]/35" />
-                  <div className="absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/10 group-hover:ring-emerald-500/40 transition-colors" />
+                {/* Subtle Soft Gradient Scrims: Clear top/center, soft text backing */}
+                <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/50 to-transparent pointer-events-none" />
+                <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/95 via-black/80 to-transparent pointer-events-none" />
+                <div className="absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/10 group-hover:ring-emerald-500/40 transition-colors pointer-events-none" />
 
-                  {/* Top Row: Sector Badge + Sector Icon */}
-                  <div className="relative z-10 flex items-center justify-between">
-                    <span className="inline-flex items-center gap-1 rounded-md bg-black/60 backdrop-blur-md px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-emerald-400 border border-emerald-500/25">
-                      {client.stat}
-                    </span>
-                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-black/60 backdrop-blur-md border border-white/10 text-slate-300 group-hover:text-emerald-400 group-hover:border-emerald-500/30 transition-colors">
-                      <Icon className="h-3.5 w-3.5" />
-                    </div>
-                  </div>
-
-                  {/* Bottom Row: Typography Hierarchy */}
-                  <div className="relative z-10 pt-6">
-                    <span className="block text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-400">
-                      {client.type}
-                    </span>
-                    <h3 className="text-xs sm:text-[13px] font-extrabold tracking-tight text-white mt-0.5 leading-snug group-hover:text-emerald-200 transition-colors">
-                      {client.name}
-                    </h3>
-                    <p className="text-[10px] text-slate-300 mt-1 line-clamp-1">
-                      {client.detail}
-                    </p>
-                  </div>
+                {/* Top Row: Clean Operational Sector Tag (No Clutter / No Icons) */}
+                <div className="relative z-10 flex items-center justify-between">
+                  <span className="inline-flex items-center rounded-md bg-black/70 backdrop-blur-md px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-300 border border-white/15 shadow-sm">
+                    {client.stat}
+                  </span>
                 </div>
-              );
-            })}
+
+                {/* Bottom Row: High-Contrast Readability Hierarchy */}
+                <div className="relative z-10 pt-8">
+                  <span className="block text-[11px] font-bold uppercase tracking-wider text-emerald-400 drop-shadow-sm">
+                    {client.type}
+                  </span>
+                  <h3 className="text-sm sm:text-base font-extrabold tracking-tight text-white mt-1 leading-snug drop-shadow-md group-hover:text-emerald-200 transition-colors">
+                    {client.name}
+                  </h3>
+                  <p className="text-xs text-slate-200 font-normal mt-1 leading-relaxed drop-shadow-sm line-clamp-2">
+                    {client.detail}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -1007,10 +997,8 @@ export default function LandingPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
             <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-8 shadow-sm space-y-4">
-              <div className="flex items-center gap-1 text-amber-500">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="h-4 w-4 fill-amber-500 text-amber-500" />
-                ))}
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
+                Verified Commercial Fleet Deployment
               </div>
               <p className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed italic">
                 &ldquo;We dropped unscheduled roadside service calls by 41% in our first six months with FI360. Our shop technicians know exactly which parts to pull before a truck even rolls into the bay.&rdquo;
@@ -1031,10 +1019,8 @@ export default function LandingPage() {
             </div>
 
             <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-8 shadow-sm space-y-4">
-              <div className="flex items-center gap-1 text-amber-500">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="h-4 w-4 fill-amber-500 text-amber-500" />
-                ))}
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
+                Verified Commercial Fleet Deployment
               </div>
               <p className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed italic">
                 &ldquo;The mobile eDVIR to work-order workflow shaved nearly an hour off our daily morning gate release. Inspections are actually verified, compliance is ironclad, and fuel anomalies are flagged instantly.&rdquo;
