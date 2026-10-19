@@ -208,11 +208,46 @@ export default function LandingPage() {
   ];
 
   const customerLogos = [
-    { name: "APEX HAULAGE LOGISTICS", type: "Heavy Transport" },
-    { name: "VANGUARD COLD CHAIN", type: "Refrigerated Freight" },
-    { name: "TITAN INFRASTRUCTURE", type: "Civil Equipment" },
-    { name: "METRO TRANSIT HUBS", type: "Passenger Fleet" },
-    { name: "NEXUS INTERMODAL", type: "Container Haulage" },
+    {
+      name: "APEX HAULAGE LOGISTICS",
+      type: "Heavy Transport",
+      image: "/images/industries/apex-haulage.jpg",
+      stat: "340+ Heavy Units",
+      detail: "Long-haul linehaul & freight transport",
+      icon: Truck,
+    },
+    {
+      name: "VANGUARD COLD CHAIN",
+      type: "Refrigerated Freight",
+      image: "/images/industries/vanguard-cold.jpg",
+      stat: "Temp Controlled",
+      detail: "Reefer transport & cold distribution",
+      icon: Activity,
+    },
+    {
+      name: "TITAN INFRASTRUCTURE",
+      type: "Civil Equipment",
+      image: "/images/industries/titan-civil.jpg",
+      stat: "Heavy Civil Plant",
+      detail: "Excavation, earthmoving & site plant",
+      icon: Wrench,
+    },
+    {
+      name: "METRO TRANSIT HUBS",
+      type: "Passenger Fleet",
+      image: "/images/industries/metro-transit.jpg",
+      stat: "Public Transit",
+      detail: "Urban buses & regional shuttle transit",
+      icon: Users,
+    },
+    {
+      name: "NEXUS INTERMODAL",
+      type: "Container Haulage",
+      image: "/images/industries/nexus-intermodal.jpg",
+      stat: "Port & Intermodal",
+      detail: "Container drayage & maritime logistics",
+      icon: Layers,
+    },
   ];
 
   return (
@@ -573,26 +608,64 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 5. Customer Trust & Segment Row */}
-      <section className="py-10 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/60">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
-          <p className="text-xs font-semibold tracking-wider text-slate-500 dark:text-slate-400 uppercase mb-6">
-            Powering mission-critical operations across transport, civil works &amp; cold chain logistics
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-            {customerLogos.map((client) => (
-              <div
-                key={client.name}
-                className="flex flex-col items-center justify-center p-3 rounded-xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900/60 shadow-xs"
-              >
-                <span className="font-extrabold text-xs tracking-tight text-slate-800 dark:text-slate-200">
-                  {client.name}
-                </span>
-                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-                  {client.type}
-                </span>
-              </div>
-            ))}
+      {/* 5. Customer Trust & Industry Segments Showcase */}
+      <section className="py-14 border-b border-slate-800 bg-[#121417] text-white">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-3xl mx-auto mb-8">
+            <p className="text-xs font-bold tracking-widest text-emerald-400 uppercase">
+              Mission-Critical Industry Sectors
+            </p>
+            <h2 className="mt-1 text-xs sm:text-sm font-extrabold tracking-wide text-slate-200 uppercase">
+              Powering mission-critical operations across transport, civil works &amp; cold chain logistics
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            {customerLogos.map((client) => {
+              const Icon = client.icon;
+              return (
+                <div
+                  key={client.name}
+                  className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-800/90 bg-[#181a1d] p-4 min-h-[195px] shadow-lg shadow-black/50 transition-all duration-300 hover:border-slate-600 hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/70 cursor-pointer"
+                >
+                  {/* Realistic Industry Photography with Dark Desaturated Overlay */}
+                  <Image
+                    src={client.image}
+                    alt={client.name}
+                    fill
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 20vw"
+                    className="object-cover object-center filter grayscale-[35%] brightness-[0.38] contrast-[1.12] transition-transform duration-700 ease-out group-hover:scale-105 group-hover:brightness-[0.45]"
+                  />
+
+                  {/* Gradient Masks for 100% Text Legibility */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0b0d0e] via-[#0b0d0e]/75 to-[#0b0d0e]/35" />
+                  <div className="absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/10 group-hover:ring-emerald-500/40 transition-colors" />
+
+                  {/* Top Row: Sector Badge + Sector Icon */}
+                  <div className="relative z-10 flex items-center justify-between">
+                    <span className="inline-flex items-center gap-1 rounded-md bg-black/60 backdrop-blur-md px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-emerald-400 border border-emerald-500/25">
+                      {client.stat}
+                    </span>
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-black/60 backdrop-blur-md border border-white/10 text-slate-300 group-hover:text-emerald-400 group-hover:border-emerald-500/30 transition-colors">
+                      <Icon className="h-3.5 w-3.5" />
+                    </div>
+                  </div>
+
+                  {/* Bottom Row: Typography Hierarchy */}
+                  <div className="relative z-10 pt-6">
+                    <span className="block text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-400">
+                      {client.type}
+                    </span>
+                    <h3 className="text-xs sm:text-[13px] font-extrabold tracking-tight text-white mt-0.5 leading-snug group-hover:text-emerald-200 transition-colors">
+                      {client.name}
+                    </h3>
+                    <p className="text-[10px] text-slate-300 mt-1 line-clamp-1">
+                      {client.detail}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>

@@ -36,3 +36,14 @@
 - [x] Converted monolithic code snippet architecture into a clean, business-first "Enterprise Connectivity & Scale" section (hardware agnostic, ERP sync, RBAC/SAML SSO).
 - [x] Added customer case studies with quantifiable outcomes and refined outcome-oriented pricing tiers.
 - [x] Compiled with Turbopack (`next build` passed with zero errors across all 29 routes).
+
+## Mission-Critical Industry Segments Visual Enhancement
+- [x] Acquired and configured 5 realistic, dark-toned commercial photography assets in `frontend/public/images/industries/`:
+  - Apex Haulage Logistics → Long-haul heavy trucks linehaul fleet (`apex-haulage.jpg`)
+  - Vanguard Cold Chain → Temperature-controlled refrigerated freight & warehouse (`vanguard-cold.jpg`)
+  - Titan Infrastructure → Civil construction excavators & earthmoving heavy plant (`titan-civil.jpg`)
+  - Metro Transit Hubs → Modern urban municipal passenger transit bus (`metro-transit.jpg`)
+  - Nexus Intermodal → Container drayage & maritime port intermodal operations (`nexus-intermodal.jpg`)
+- [x] Redesigned the 5-card horizontal layout with background image depth, cool desaturated grading (`grayscale-[35%] brightness-[0.38]`), and multi-layer dark gradient masks for 100% text legibility.
+- [x] Added sector badges, operational icons (`Truck`, `Activity`, `Wrench`, `Users`, `Layers`), fleet detail counters, and hover micro-animations.
+- [x] Verified full production build with Turbopack (29 routes static compilation passed).
