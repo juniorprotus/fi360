@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { ThemeToggle } from "./ThemeToggle";
 import { ROLE_CONFIGS } from "@/lib/auth/rbac";
@@ -64,9 +65,16 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
 
         {/* Logo + Product Name + Single PROFESSIONAL badge */}
         <div className="flex items-center gap-2">
-          <Link href="/dashboard" className="flex items-center gap-2 focus:outline-none">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 text-xs font-black tracking-wider text-white shadow-sm shadow-blue-500/20">
-              FI
+          <Link href="/dashboard" className="flex items-center gap-2 focus:outline-none group">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white dark:bg-slate-800 p-0.5 border border-slate-200 dark:border-slate-700/80 shadow-sm shrink-0 transition-transform group-hover:scale-105">
+              <Image
+                src="/icon.png"
+                alt="FI360 Logo"
+                width={24}
+                height={24}
+                className="h-full w-full object-contain"
+                priority
+              />
             </div>
             <span className="font-extrabold tracking-tight text-sm text-slate-900 dark:text-white">
               FI360

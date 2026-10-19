@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { ROLE_CONFIGS } from "@/lib/auth/rbac";
@@ -95,12 +96,19 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       {/* Brand Header */}
       <div>
         <div className="flex h-16 items-center justify-between border-b border-slate-200 px-6 dark:border-slate-800">
-          <Link href="/dashboard" className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 font-black text-sm tracking-wider text-white shadow-md shadow-blue-500/20">
-              FI
+          <Link href="/dashboard" className="flex items-center gap-3 group">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700/80 shadow-sm shrink-0 transition-transform group-hover:scale-105">
+              <Image
+                src="/icon.png"
+                alt="FI360 Logo"
+                width={36}
+                height={36}
+                className="h-full w-full object-contain"
+                priority
+              />
             </div>
             <div>
-              <span className="text-base font-bold tracking-tight text-slate-900 dark:text-white leading-none">
+              <span className="text-base font-extrabold tracking-tight text-slate-900 dark:text-white leading-none">
                 FI360
               </span>
               <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500">

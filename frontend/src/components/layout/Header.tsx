@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Image from "next/image";
 
 interface HeaderProps {
   backendOnline: boolean;
@@ -21,8 +22,15 @@ export function Header({ backendOnline, activeOrg = "National Logistics Hub" }: 
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-slate-700/60 bg-slate-900/90 px-6 backdrop-blur-md">
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-black text-sm tracking-wider shadow-inner">
-            FI
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 border border-slate-700/80 p-1 shadow-inner shrink-0">
+            <Image
+              src="/icon.png"
+              alt="FI360 Logo"
+              width={32}
+              height={32}
+              className="h-full w-full object-contain"
+              priority
+            />
           </div>
           <div>
             <div className="flex items-center gap-2">

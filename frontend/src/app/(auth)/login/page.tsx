@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
@@ -53,11 +54,18 @@ export default function LoginPage() {
     <div className="min-h-screen flex flex-col justify-between bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors">
       {/* Top Header */}
       <header className="flex h-16 items-center justify-between px-6 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
-        <Link href="/" className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white font-black text-sm">
-            FI
+        <Link href="/" className="flex items-center gap-2.5 group">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white dark:bg-slate-800 p-0.5 border border-slate-200 dark:border-slate-700/80 shadow-sm shrink-0 transition-transform group-hover:scale-105">
+            <Image
+              src="/icon.png"
+              alt="FI360 Logo"
+              width={28}
+              height={28}
+              className="h-full w-full object-contain"
+              priority
+            />
           </div>
-          <span className="font-bold tracking-tight text-base text-slate-900 dark:text-white">
+          <span className="font-extrabold tracking-tight text-base text-slate-900 dark:text-white">
             FI360
           </span>
         </Link>
@@ -68,8 +76,15 @@ export default function LoginPage() {
       <main className="flex-1 flex items-center justify-center p-4 sm:p-6">
         <div className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-xl">
           <div className="text-center mb-6">
-            <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 mb-3">
-              <ShieldCheck className="h-6 w-6" />
+            <div className="inline-flex items-center justify-center p-2.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 shadow-md mb-3 max-w-[200px]">
+              <Image
+                src="/logo.png"
+                alt="FI360 Fleet Intelligence 360"
+                width={180}
+                height={114}
+                className="w-full h-auto object-contain"
+                priority
+              />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
               Sign in to FI360
