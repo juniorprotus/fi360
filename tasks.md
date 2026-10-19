@@ -13,3 +13,13 @@
   - Login Page (`frontend/src/app/(auth)/login/page.tsx`)
   - Registration Page (`frontend/src/app/(auth)/register/page.tsx`)
 - [x] Verified full production build with Turbopack (29 routes static compilation passed).
+
+## Dark Theme Color Palette Integration
+- [x] Extracted exact hex values from user color palette swatch:
+  - Base Background: `#272829` (Deep Charcoal Canvas)
+  - Secondary / Borders: `#61677A` (Cool Steel Slate Blue-Gray)
+  - Primary / Body Text: `#D8D9DA` (Platinum Silver)
+  - Accents & Highlights: `#FFF6E0` (Warm Cream / Ivory)
+- [x] Configured CSS variables and Tailwind v4 `@theme` mappings in [globals.css](file:///c:/Users/HP/OneDrive/Documents/FI360%20II/frontend/src/app/globals.css).
+- [x] Retained default light mode slate scale while overriding `.dark` tokens across canvas, surfaces, borders, text, and active elements.
+- [x] Verified with Turbopack production build (`next build` succeeded with 0 errors across 29 routes).
