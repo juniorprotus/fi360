@@ -30,6 +30,45 @@ import {
   X,
 } from "lucide-react";
 
+const outcomeCards = [
+  {
+    name: "Road Freight and Haulage",
+    type: "Heavy Transport",
+    image: "/images/industries/apex-haulage.jpg",
+    metric: "$280k",
+    metricLabel: "Annual Maintenance Savings",
+    story: "Enable unified fleet coordination, dynamic driver dispatch synchronization, and predictive maintenance planning for demanding commercial road haulage operations.",
+    link: "Explore road freight solutions",
+  },
+  {
+    name: "Infrastructure and Heavy Equipment",
+    type: "Civil Equipment",
+    image: "/images/industries/titan-civil.png",
+    metric: "42%",
+    metricLabel: "Downtime Reduction",
+    story: "Explore how FI360 supports real-time equipment telemetry monitoring, jobsite plant health tracking, and proactive service coordination for heavy machinery.",
+    link: "Explore heavy equipment solutions",
+  },
+  {
+    name: "Public Transit and Urban Mobility",
+    type: "Passenger Fleet",
+    image: "/images/industries/metro-transit.jpg",
+    metric: "99.8%",
+    metricLabel: "Dispatch Reliability",
+    story: "Gain complete fleet visibility, automate preventative maintenance planning, and ensure route readiness compliance across municipal and passenger transit networks.",
+    link: "Explore public transit solutions",
+  },
+  {
+    name: "Intermodal Container Logistics",
+    type: "Container Haulage",
+    image: "/images/industries/nexus-intermodal.jpg",
+    metric: "3.2x",
+    metricLabel: "Asset Utilization Velocity",
+    story: "Coordinate multi-modal transport assets, manage container chassis availability, and improve end-to-end operational visibility across high-throughput freight terminals.",
+    link: "Explore intermodal solutions",
+  },
+];
+
 export default function LandingPage() {
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("annual");
   const [activePersona, setActivePersona] = useState<"manager" | "tech" | "dispatcher" | "driver">("manager");
@@ -43,13 +82,13 @@ export default function LandingPage() {
     if (isCarouselPaused) return;
     const interval = setInterval(() => {
       setActiveOutcomeCard((prev) => {
-        const next = (prev + 1) % 5;
+        const next = (prev + 1) % outcomeCards.length;
         scrollToOutcomeCard(next);
         return next;
       });
     }, 6000);
     return () => clearInterval(interval);
-  }, [isCarouselPaused]);
+  }, [isCarouselPaused, outcomeCards.length]);
 
   const scrollToOutcomeCard = (index: number) => {
     if (outcomeScrollRef.current) {
@@ -64,12 +103,12 @@ export default function LandingPage() {
   };
 
   const handlePrevOutcome = () => {
-    const newIndex = activeOutcomeCard === 0 ? 4 : activeOutcomeCard - 1;
+    const newIndex = activeOutcomeCard === 0 ? outcomeCards.length - 1 : activeOutcomeCard - 1;
     scrollToOutcomeCard(newIndex);
   };
 
   const handleNextOutcome = () => {
-    const newIndex = (activeOutcomeCard + 1) % 5;
+    const newIndex = (activeOutcomeCard + 1) % outcomeCards.length;
     scrollToOutcomeCard(newIndex);
   };
 
@@ -79,7 +118,7 @@ export default function LandingPage() {
       const scrollLeft = container.scrollLeft;
       const firstChild = container.children[0] as HTMLElement | undefined;
       const cardWidth = firstChild ? firstChild.offsetWidth + 20 : 380;
-      const newIndex = Math.min(4, Math.max(0, Math.round(scrollLeft / cardWidth)));
+      const newIndex = Math.min(outcomeCards.length - 1, Math.max(0, Math.round(scrollLeft / cardWidth)));
       if (newIndex !== activeOutcomeCard) {
         setActiveOutcomeCard(newIndex);
       }
@@ -251,53 +290,7 @@ export default function LandingPage() {
     },
   ];
 
-  const outcomeCards = [
-    {
-      name: "Apex Haulage Logistics",
-      type: "Heavy Transport",
-      image: "/images/industries/apex-haulage.jpg",
-      metric: "$280k",
-      metricLabel: "Annual Maintenance Savings",
-      story: "Avoided $280k in unnecessary heavy-duty repairs annually through predictive component wear monitoring and automated PM triggers.",
-      link: "Read the Apex story",
-    },
-    {
-      name: "Vanguard Cold Chain",
-      type: "Refrigerated Freight",
-      image: "/images/industries/vanguard-cold.jpg",
-      metric: "99.4%",
-      metricLabel: "Temperature Compliance Rate",
-      story: "Maintained 99.4% on-time temperature compliance across multi-zone reefer trailer networks with real-time sensor integrations.",
-      link: "Read the Vanguard story",
-    },
-    {
-      name: "Titan Infrastructure",
-      type: "Civil Equipment",
-      image: "/images/industries/titan-civil.png",
-      metric: "42%",
-      metricLabel: "Downtime Reduction",
-      story: "Reduced jobsite machine downtime by 42% with real-time telematics health checks and automated preventive scheduling.",
-      link: "Read the Titan story",
-    },
-    {
-      name: "Metro Transit Hubs",
-      type: "Passenger Fleet",
-      image: "/images/industries/metro-transit.jpg",
-      metric: "99.8%",
-      metricLabel: "Dispatch Reliability",
-      story: "Achieved 99.8% peak-hour dispatch reliability across municipal bus fleets with automated compliance audits and defect lockouts.",
-      link: "Read the Metro story",
-    },
-    {
-      name: "Nexus Intermodal",
-      type: "Container Haulage",
-      image: "/images/industries/nexus-intermodal.jpg",
-      metric: "3.2x",
-      metricLabel: "Asset Utilization Velocity",
-      story: "Accelerated chassis and gantry container turnaround velocity by 3.2x with unified yard tracking and dispatch coordination.",
-      link: "Read the Nexus story",
-    },
-  ];
+
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors">
@@ -675,17 +668,17 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 5. Proven Fleet Outcomes — Fleetio-Style Proof Carousel */}
+      {/* 5. Fleet Operations in Focus — Carousel */}
       <section className="py-16 sm:py-20 lg:py-24 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 transition-colors overflow-hidden">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           {/* Section Header with Carousel Navigation */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 sm:mb-12">
             <div className="max-w-2xl">
               <p className="text-xs font-bold tracking-widest text-emerald-700 dark:text-emerald-400 uppercase">
-                Proven Fleet Outcomes
+                Fleet Operations in Focus
               </p>
               <h2 className="mt-2 text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-slate-900 dark:text-white">
-                The proof is in the numbers
+                Explore the possibilities of smarter fleet operations
               </h2>
               <p className="mt-3 text-sm sm:text-base text-slate-600 dark:text-slate-400 leading-relaxed">
                 See how leading commercial fleets reduce downtime, eliminate unnecessary repairs, and maintain 99%+ operational compliance with FI360.
