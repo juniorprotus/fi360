@@ -17,6 +17,7 @@ import {
   TrendingDown,
   Gauge,
   Layers,
+  ChevronLeft,
   ChevronRight,
   Zap,
   ShieldCheck,
@@ -34,26 +35,56 @@ export default function LandingPage() {
   const [activePersona, setActivePersona] = useState<"manager" | "tech" | "dispatcher" | "driver">("manager");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeOutcomeCard, setActiveOutcomeCard] = useState(0);
+  const [isCarouselPaused, setIsCarouselPaused] = useState(false);
   const outcomeScrollRef = useRef<HTMLDivElement>(null);
 
-  // Auto-rotate outcome cards on mobile every 5s
+  // Auto-advance outcome cards carousel every 6s when not paused
   useEffect(() => {
+    if (isCarouselPaused) return;
     const interval = setInterval(() => {
-      setActiveOutcomeCard((prev) => (prev + 1) % 5);
-    }, 5000);
+      setActiveOutcomeCard((prev) => {
+        const next = (prev + 1) % 5;
+        scrollToOutcomeCard(next);
+        return next;
+      });
+    }, 6000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isCarouselPaused]);
 
-  // Scroll outcome carousel on mobile when active card changes
-  useEffect(() => {
-    if (outcomeScrollRef.current && window.innerWidth < 768) {
+  const scrollToOutcomeCard = (index: number) => {
+    if (outcomeScrollRef.current) {
       const container = outcomeScrollRef.current;
-      const card = container.children[activeOutcomeCard] as HTMLElement;
-      if (card) {
-        container.scrollTo({ left: card.offsetLeft - 16, behavior: "smooth" });
+      const targetCard = container.children[index] as HTMLElement;
+      if (targetCard) {
+        const left = targetCard.offsetLeft - container.offsetLeft;
+        container.scrollTo({ left, behavior: "smooth" });
+        setActiveOutcomeCard(index);
       }
     }
-  }, [activeOutcomeCard]);
+  };
+
+  const handlePrevOutcome = () => {
+    const newIndex = activeOutcomeCard === 0 ? 4 : activeOutcomeCard - 1;
+    scrollToOutcomeCard(newIndex);
+  };
+
+  const handleNextOutcome = () => {
+    const newIndex = (activeOutcomeCard + 1) % 5;
+    scrollToOutcomeCard(newIndex);
+  };
+
+  const handleOutcomeScroll = () => {
+    if (outcomeScrollRef.current) {
+      const container = outcomeScrollRef.current;
+      const scrollLeft = container.scrollLeft;
+      const firstChild = container.children[0] as HTMLElement | undefined;
+      const cardWidth = firstChild ? firstChild.offsetWidth + 20 : 380;
+      const newIndex = Math.min(4, Math.max(0, Math.round(scrollLeft / cardWidth)));
+      if (newIndex !== activeOutcomeCard) {
+        setActiveOutcomeCard(newIndex);
+      }
+    }
+  };
 
   const personas = {
     manager: {
@@ -242,7 +273,7 @@ export default function LandingPage() {
     {
       name: "Titan Infrastructure",
       type: "Civil Equipment",
-      image: "/images/industries/titan-civil.jpg",
+      image: "/images/industries/titan-civil.png",
       metric: "42%",
       metricLabel: "Downtime Reduction",
       story: "Reduced jobsite machine downtime by 42% with real-time telematics health checks and automated preventive scheduling.",
@@ -644,139 +675,168 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 5. Proven Fleet Outcomes — Fleetio-Style Proof Section (Redesigned) */}
-      <section className="py-16 sm:py-20 lg:py-24 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 transition-colors">
+      {/* 5. Proven Fleet Outcomes — Fleetio-Style Proof Carousel */}
+      <section className="py-16 sm:py-20 lg:py-24 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 transition-colors overflow-hidden">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          {/* Section Header */}
-          <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-14">
-            <p className="text-xs font-bold tracking-widest text-emerald-700 dark:text-emerald-400 uppercase">
-              Proven Fleet Outcomes
-            </p>
-            <h2 className="mt-2 text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-slate-900 dark:text-white">
-              The proof is in the numbers
-            </h2>
-            <p className="mt-3 text-sm sm:text-base text-slate-600 dark:text-slate-400 leading-relaxed">
-              See how leading commercial fleets reduce downtime, eliminate unnecessary repairs, and maintain 99%+ operational compliance with FI360.
-            </p>
-          </div>
+          {/* Section Header with Carousel Navigation */}
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 sm:mb-12">
+            <div className="max-w-2xl">
+              <p className="text-xs font-bold tracking-widest text-emerald-700 dark:text-emerald-400 uppercase">
+                Proven Fleet Outcomes
+              </p>
+              <h2 className="mt-2 text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-slate-900 dark:text-white">
+                The proof is in the numbers
+              </h2>
+              <p className="mt-3 text-sm sm:text-base text-slate-600 dark:text-slate-400 leading-relaxed">
+                See how leading commercial fleets reduce downtime, eliminate unnecessary repairs, and maintain 99%+ operational compliance with FI360.
+              </p>
+            </div>
 
-          {/* Top Row: 3 Large Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6 mb-5 sm:mb-6">
-            {outcomeCards.slice(0, 3).map((card) => (
-              <div
-                key={card.name}
-                className="group relative flex flex-col justify-end overflow-hidden rounded-2xl min-h-[340px] sm:min-h-[380px] lg:min-h-[420px] shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 cursor-pointer"
-              >
-                {/* Background Image */}
-                <Image
-                  src={card.image}
-                  alt={card.name}
-                  fill
-                  sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                  className="object-cover object-center brightness-[0.75] contrast-[1.05] transition-all duration-700 ease-out group-hover:scale-105 group-hover:brightness-[0.82]"
-                />
-
-                {/* Gradient Scrim */}
-                <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/40 to-transparent pointer-events-none" />
-                <div className="absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-black/90 via-black/60 to-transparent pointer-events-none" />
-                <div className="absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/10 group-hover:ring-emerald-400/30 transition-colors pointer-events-none" />
-
-                {/* Top: Industry Type Badge */}
-                <div className="absolute top-4 left-4 z-10">
-                  <span className="inline-flex items-center rounded-lg bg-black/60 backdrop-blur-md px-2.5 py-1 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-300 border border-white/10">
-                    {card.type}
-                  </span>
-                </div>
-
-                {/* Bottom Content */}
-                <div className="relative z-10 p-5 sm:p-6 space-y-2">
-                  {/* Big Metric */}
-                  <div className="flex items-end gap-2">
-                    <span className="text-4xl sm:text-5xl font-black text-white tracking-tight drop-shadow-lg leading-none">
-                      {card.metric}
-                    </span>
-                  </div>
-                  <p className="text-xs sm:text-sm font-bold text-emerald-300">
-                    {card.metricLabel}
-                  </p>
-
-                  {/* Company Name & Story */}
-                  <h3 className="text-base sm:text-lg font-bold text-white leading-snug pt-1">
-                    {card.name}
-                  </h3>
-                  <p className="text-xs sm:text-sm text-slate-200/90 leading-relaxed line-clamp-2">
-                    {card.story}
-                  </p>
-
-                  {/* CTA Link */}
-                  <div className="pt-2">
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-300 group-hover:text-emerald-200 transition-colors">
-                      {card.link}
-                      <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-                    </span>
-                  </div>
-                </div>
+            {/* Carousel Navigation Controls (Desktop & Tablet) */}
+            <div className="flex items-center gap-3 shrink-0">
+              <div className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400 pr-1">
+                0{activeOutcomeCard + 1} <span className="text-slate-400 dark:text-slate-600">/</span> 0{outcomeCards.length}
               </div>
-            ))}
+              <button
+                type="button"
+                onClick={handlePrevOutcome}
+                aria-label="Previous outcome"
+                className="h-10 w-10 rounded-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-400 dark:hover:border-slate-600 flex items-center justify-center transition shadow-sm active:scale-95 cursor-pointer"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={handleNextOutcome}
+                aria-label="Next outcome"
+                className="h-10 w-10 rounded-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-400 dark:hover:border-slate-600 flex items-center justify-center transition shadow-sm active:scale-95 cursor-pointer"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
-          {/* Bottom Row: 2 Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
-            {outcomeCards.slice(3).map((card) => (
-              <div
-                key={card.name}
-                className="group relative flex flex-col justify-end overflow-hidden rounded-2xl min-h-[280px] sm:min-h-[320px] lg:min-h-[340px] shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 cursor-pointer"
-              >
-                {/* Background Image */}
-                <Image
-                  src={card.image}
-                  alt={card.name}
-                  fill
-                  sizes="(max-width: 768px) 100vw, 50vw"
-                  className="object-cover object-center brightness-[0.75] contrast-[1.05] transition-all duration-700 ease-out group-hover:scale-105 group-hover:brightness-[0.82]"
-                />
+          {/* Carousel Track */}
+          <div
+            className="relative"
+            onMouseEnter={() => setIsCarouselPaused(true)}
+            onMouseLeave={() => setIsCarouselPaused(false)}
+          >
+            <div
+              ref={outcomeScrollRef}
+              onScroll={handleOutcomeScroll}
+              className="flex gap-5 sm:gap-6 overflow-x-auto scroll-smooth snap-x snap-mandatory scrollbar-none py-2"
+            >
+              {outcomeCards.map((card, idx) => (
+                <div
+                  key={card.name}
+                  onClick={() => scrollToOutcomeCard(idx)}
+                  className="group relative flex flex-col justify-end overflow-hidden rounded-2xl h-[420px] sm:h-[460px] lg:h-[490px] w-[86vw] sm:w-[380px] md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] shrink-0 snap-start shadow-md hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 cursor-pointer"
+                >
+                  {/* Background Image */}
+                  <Image
+                    src={card.image}
+                    alt={card.name}
+                    fill
+                    sizes="(max-width: 640px) 86vw, (max-width: 1024px) 50vw, 33vw"
+                    className="object-cover object-center brightness-[0.78] contrast-[1.05] transition-all duration-700 ease-out group-hover:scale-105 group-hover:brightness-[0.85]"
+                  />
 
-                {/* Gradient Scrim */}
-                <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/40 to-transparent pointer-events-none" />
-                <div className="absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-black/90 via-black/60 to-transparent pointer-events-none" />
-                <div className="absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/10 group-hover:ring-emerald-400/30 transition-colors pointer-events-none" />
+                  {/* Gradient Scrim for 100% typography contrast */}
+                  <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/50 to-transparent pointer-events-none" />
+                  <div className="absolute inset-x-0 bottom-0 h-4/5 bg-gradient-to-t from-black/95 via-black/65 to-transparent pointer-events-none" />
+                  <div
+                    className={`absolute inset-0 rounded-2xl ring-1 ring-inset transition-all pointer-events-none ${
+                      idx === activeOutcomeCard
+                        ? "ring-emerald-400/60 shadow-[inset_0_0_20px_rgba(16,185,129,0.15)]"
+                        : "ring-white/10 group-hover:ring-emerald-400/30"
+                    }`}
+                  />
 
-                {/* Top Badge */}
-                <div className="absolute top-4 left-4 z-10">
-                  <span className="inline-flex items-center rounded-lg bg-black/60 backdrop-blur-md px-2.5 py-1 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-300 border border-white/10">
-                    {card.type}
-                  </span>
-                </div>
+                  {/* Top: Sector Badge */}
+                  <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
+                    <span className="inline-flex items-center rounded-lg bg-black/60 backdrop-blur-md px-2.5 py-1 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-300 border border-white/10">
+                      {card.type}
+                    </span>
+                  </div>
 
-                {/* Bottom Content */}
-                <div className="relative z-10 p-5 sm:p-6">
-                  <div className="flex items-end gap-3 sm:gap-4">
-                    <div className="space-y-1.5">
-                      <div className="flex items-end gap-2">
-                        <span className="text-4xl sm:text-5xl font-black text-white tracking-tight drop-shadow-lg leading-none">
-                          {card.metric}
-                        </span>
-                      </div>
-                      <p className="text-xs sm:text-sm font-bold text-emerald-300">
-                        {card.metricLabel}
-                      </p>
+                  {/* Bottom Content */}
+                  <div className="relative z-10 p-5 sm:p-6 space-y-2">
+                    {/* Big Metric */}
+                    <div className="flex items-end gap-2">
+                      <span className="text-4xl sm:text-5xl font-black text-white tracking-tight drop-shadow-lg leading-none">
+                        {card.metric}
+                      </span>
+                    </div>
+                    <p className="text-xs sm:text-sm font-bold text-emerald-300">
+                      {card.metricLabel}
+                    </p>
+
+                    {/* Company Name & Story */}
+                    <h3 className="text-base sm:text-lg font-bold text-white leading-snug pt-1">
+                      {card.name}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-slate-200/90 leading-relaxed line-clamp-2">
+                      {card.story}
+                    </p>
+
+                    {/* CTA Link */}
+                    <div className="pt-2">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-300 group-hover:text-emerald-200 transition-colors">
+                        {card.link}
+                        <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                      </span>
                     </div>
                   </div>
-                  <h3 className="text-base sm:text-lg font-bold text-white leading-snug mt-3">
-                    {card.name}
-                  </h3>
-                  <p className="text-xs sm:text-sm text-slate-200/90 leading-relaxed mt-1 line-clamp-2">
-                    {card.story}
-                  </p>
-                  <div className="pt-2">
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-300 group-hover:text-emerald-200 transition-colors">
-                      {card.link}
-                      <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-                    </span>
-                  </div>
                 </div>
+              ))}
+            </div>
+
+            {/* Pagination Controls & Verification Footer */}
+            <div className="mt-8 flex items-center justify-between">
+              {/* Pagination Dots */}
+              <div className="flex items-center gap-2">
+                {outcomeCards.map((_, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => scrollToOutcomeCard(idx)}
+                    aria-label={`Go to outcome slide ${idx + 1}`}
+                    className={`transition-all duration-300 rounded-full cursor-pointer ${
+                      idx === activeOutcomeCard
+                        ? "w-8 h-2.5 bg-emerald-600 dark:bg-emerald-400"
+                        : "w-2.5 h-2.5 bg-slate-300 hover:bg-slate-400 dark:bg-slate-700 dark:hover:bg-slate-600"
+                    }`}
+                  />
+                ))}
               </div>
-            ))}
+
+              {/* Mobile Arrows */}
+              <div className="flex md:hidden items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handlePrevOutcome}
+                  aria-label="Previous outcome"
+                  className="h-8 w-8 rounded-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 flex items-center justify-center transition shadow-sm active:scale-95"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNextOutcome}
+                  aria-label="Next outcome"
+                  className="h-8 w-8 rounded-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 flex items-center justify-center transition shadow-sm active:scale-95"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Production Verification Label */}
+              <div className="hidden sm:flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Audited enterprise production metrics
+              </div>
+            </div>
           </div>
         </div>
       </section>

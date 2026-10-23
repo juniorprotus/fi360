@@ -69,4 +69,10 @@
   - Responsive grid layouts collapsing from 3/4/5 columns to 1 and 2 columns cleanly on tablet and mobile viewports.
   - Horizontal-scrolling persona switcher tabs on mobile with hidden scrollbars (`.scrollbar-none`).
   - Mobile-optimized footer collapsing into 2-column mobile and 5-column desktop configurations.
+- [x] Integrated user-provided Titan Infrastructure asset & Interactive Outcomes Carousel:
+  - Deployed user's high-impact heavy mining/civil excavator and haul dump truck photography for Titan Infrastructure (`frontend/public/images/industries/titan-civil.png` and `titan-civil.jpg`).
+  - Converted the static proof section into a fluid, interactive outcome carousel with responsive card dimensions (1-card on mobile, 2-cards on tablet, 3-cards on desktop).
+  - Added desktop and tablet header navigation buttons (`ChevronLeft` / `ChevronRight`) with dynamic slide position counters (`01 / 05`).
+  - Implemented 6-second autoplay with automatic hover pause (`isCarouselPaused`) and touch/scroll synchronization.
+  - Added clickable pagination pill indicators and mobile quick-nav buttons with emerald active states.
 - [x] Verified full production Turbopack build (`next build` compiled all 29 routes statically with 0 errors).
