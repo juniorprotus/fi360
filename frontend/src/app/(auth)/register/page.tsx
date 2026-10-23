@@ -11,7 +11,7 @@ import { toast } from "sonner";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { register } = useAuth();
   const [name, setName] = useState("");
   const [orgName, setOrgName] = useState("");
   const [email, setEmail] = useState("");
@@ -26,13 +26,27 @@ export default function RegisterPage() {
       return;
     }
 
+    if (password.length < 8) {
+      toast.error("Password must be at least 8 characters long");
+      return;
+    }
+
     setLoading(true);
     try {
-      await login(email, "owner", orgName);
-      toast.success("14-Day Free Trial activated! Welcome to FI360.");
-      router.push("/dashboard");
-    } catch {
-      toast.error("Registration failed. Please try again.");
+      const result = await register({
+        email,
+        password,
+        name,
+        organizationName: orgName,
+      });
+      toast.success("Organization workspace activated! Welcome to FI360.");
+      router.push(result.redirectUrl || "/dashboard");
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Registration failed. Please check inputs."
+      );
     } finally {
       setLoading(false);
     }

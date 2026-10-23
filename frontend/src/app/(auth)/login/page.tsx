@@ -6,30 +6,15 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
-import { UserRole, ROLE_CONFIGS } from "@/lib/auth/rbac";
-import { ShieldCheck, ArrowRight, Loader2, Lock, Mail, Users } from "lucide-react";
+import { ShieldCheck, ArrowRight, Loader2, Lock, Mail } from "lucide-react";
 import { toast } from "sonner";
 
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
-  const [email, setEmail] = useState("alex@metrologistics.com");
-  const [password, setPassword] = useState("password123");
-  const [role, setRole] = useState<UserRole>("fleet_manager");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-
-  const rolesList: UserRole[] = [
-    "owner",
-    "admin",
-    "fleet_manager",
-    "workshop_manager",
-    "technician",
-    "driver",
-    "dispatcher",
-    "compliance",
-    "finance",
-    "viewer",
-  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,11 +25,15 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      const result = await login(email, role, "Metro Fleet Logistics Ltd");
-      toast.success(`Welcome to FI360 (${ROLE_CONFIGS[role].label})`);
+      const result = await login(email, password);
+      toast.success(`Welcome back, ${result.user.name}`);
       router.push(result.redirectUrl);
-    } catch {
-      toast.error("Authentication failed. Please check credentials.");
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Authentication failed. Please verify your credentials."
+      );
     } finally {
       setLoading(false);
     }
@@ -90,7 +79,7 @@ export default function LoginPage() {
               Sign in to FI360
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Select your role profile to enter the dedicated command center.
+              Enter your enterprise credentials to access your fleet operations workspace.
             </p>
           </div>
 
@@ -107,15 +96,18 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@company.com"
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 pl-9 pr-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  autoComplete="email"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 pl-9 pr-3 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600 dark:focus:ring-emerald-500 transition"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Password
+                </label>
+              </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <input
@@ -124,48 +116,26 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••••"
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 pl-9 pr-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  autoComplete="current-password"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 pl-9 pr-3 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600 dark:focus:ring-emerald-500 transition"
                 />
               </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Role Persona
-              </label>
-              <div className="relative">
-                <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as UserRole)}
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 pl-9 pr-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  {rolesList.map((r) => (
-                    <option key={r} value={r}>
-                      {ROLE_CONFIGS[r].label} &rarr; ({ROLE_CONFIGS[r].defaultRoute})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-                {ROLE_CONFIGS[role].description}
-              </p>
             </div>
 
             <div className="pt-2">
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full flex items-center justify-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 text-sm shadow-md transition disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-medium py-2.5 px-4 text-sm shadow-md transition disabled:opacity-50 cursor-pointer active:scale-[0.99]"
               >
                 {loading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Signing in...</span>
+                    <span>Verifying Credentials...</span>
                   </>
                 ) : (
                   <>
-                    <span>Enter {ROLE_CONFIGS[role].label}</span>
+                    <span>Sign In to Workspace</span>
                     <ArrowRight className="h-4 w-4" />
                   </>
                 )}
@@ -173,23 +143,29 @@ export default function LoginPage() {
             </div>
           </form>
 
-          <div className="mt-6 border-t border-slate-200 dark:border-slate-800 pt-4 text-center">
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Need a new multi-tenant organization account?{" "}
+          {/* Security badge and account creation link */}
+          <div className="mt-6 pt-5 border-t border-slate-200 dark:border-slate-800 text-center space-y-3">
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              New organization?{" "}
               <Link
                 href="/register"
-                className="font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                className="font-bold text-emerald-700 dark:text-emerald-400 hover:underline"
               >
-                Create Account
+                Start 14-Day Free Trial &rarr;
               </Link>
             </p>
+
+            <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+              <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>TLS 1.3 Encrypted &bull; Server-Verified RBAC</span>
+            </div>
           </div>
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="text-center py-4 text-xs text-slate-400 dark:text-slate-600">
-        &copy; 2026 Fleet Intelligence 360 (FI360) &ndash; Commercial Fleet OS. All rights reserved.
+      <footer className="py-4 text-center text-xs text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800">
+        &copy; {new Date().getFullYear()} Fleet Intelligence 360 (FI360). All rights reserved.
       </footer>
     </div>
   );

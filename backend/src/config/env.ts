@@ -11,6 +11,8 @@ const envSchema = z.object({
   MONGODB_URI: z.string().optional(), // Optional to allow offline fallback mode
   FRONTEND_URL: z.string().url().optional().default("http://localhost:3000"),
   GEMINI_API_KEY: z.string().optional(), // Optional: AI features degrade gracefully if missing
+  JWT_SECRET: z.string().min(16, "JWT_SECRET must be at least 16 characters").default("fi360_secure_jwt_secret_dev_key_2026"),
+  JWT_EXPIRES_IN: z.string().default("7d"),
 });
 
 type Env = z.infer<typeof envSchema>;

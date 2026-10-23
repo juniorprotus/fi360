@@ -1,40 +1,41 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { UserRole, getDefaultRouteForRole, ROLE_CONFIGS } from "./rbac";
+import { UserRole, getDefaultRouteForRole } from "./rbac";
 
 export interface User {
   id: string;
   name: string;
   email: string;
   role: UserRole;
-  organizationId: string;
-  organizationName: string;
-  plan: "Starter" | "Professional" | "Enterprise";
+  organizationId?: string;
+  organizationName?: string;
+  plan?: "Starter" | "Professional" | "Enterprise";
 }
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  login: (email: string, role?: UserRole, orgName?: string) => Promise<{ success: boolean; redirectUrl: string }>;
-  logout: () => void;
+  login: (
+    email: string,
+    password: string
+  ) => Promise<{ success: boolean; user: User; redirectUrl: string }>;
+  register: (data: {
+    email: string;
+    password: string;
+    name: string;
+    organizationName: string;
+  }) => Promise<{ success: boolean; user: User; redirectUrl: string }>;
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
-  switchRole: (newRole: UserRole) => void;
+  refreshSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const DEMO_USER: User = {
-  id: "usr_demo_101",
-  name: "Alex Sterling",
-  email: "alex@metrologistics.com",
-  role: "fleet_manager",
-  organizationId: "org_metro_global",
-  organizationName: "Metro Fleet Logistics Ltd",
-  plan: "Professional",
-};
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -42,76 +43,196 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const router = useRouter();
 
-  useEffect(() => {
+  /**
+   * Verified session rehydration:
+   * Contacts backend /api/auth/me to verify token authenticity and active account status.
+   * Never treats browser localStorage as authoritative.
+   */
+  const refreshSession = useCallback(async () => {
+    setIsLoading(true);
     try {
-      const storedToken = localStorage.getItem("fi360_auth_token");
-      const storedUser = localStorage.getItem("fi360_auth_user");
-      if (storedToken && storedUser) {
-        const parsed = JSON.parse(storedUser);
-        // Normalize role if legacy format was stored
-        const validRoles: UserRole[] = [
-          "owner", "admin", "fleet_manager", "workshop_manager",
-          "technician", "driver", "dispatcher", "compliance", "finance", "viewer"
-        ];
-        if (!validRoles.includes(parsed.role)) {
-          parsed.role = "fleet_manager";
-        }
-        setToken(storedToken);
-        setUser(parsed);
+      const storedToken =
+        typeof window !== "undefined"
+          ? localStorage.getItem("fi360_auth_token")
+          : null;
+
+      if (!storedToken) {
+        setUser(null);
+        setToken(null);
+        setIsLoading(false);
+        return;
       }
-    } catch (e) {
-      console.error("Failed to restore auth session:", e);
+
+      const res = await fetch(`${API_BASE}/api/auth/me`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${storedToken}`,
+        },
+        credentials: "include",
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.user) {
+          const verifiedUser: User = {
+            id: data.user.userId,
+            name: data.user.name,
+            email: data.user.email,
+            role: data.user.role,
+            organizationId: data.user.organizationId,
+            organizationName: data.user.organizationName,
+            plan: data.user.plan || "Professional",
+          };
+          setUser(verifiedUser);
+          setToken(storedToken);
+          localStorage.setItem("fi360_auth_user", JSON.stringify(verifiedUser));
+        } else {
+          throw new Error("Invalid session verification payload");
+        }
+      } else {
+        // Token expired, forged, or user deactivated on server
+        localStorage.removeItem("fi360_auth_token");
+        localStorage.removeItem("fi360_auth_user");
+        setUser(null);
+        setToken(null);
+      }
+    } catch {
+      localStorage.removeItem("fi360_auth_token");
+      localStorage.removeItem("fi360_auth_user");
+      setUser(null);
+      setToken(null);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
+  useEffect(() => {
+    refreshSession();
+  }, [refreshSession]);
+
+  /**
+   * Production login:
+   * Sends credentials to backend /api/auth/login.
+   * Rejects on any 401/400.
+   */
   const login = async (
     email: string,
-    role: UserRole = "fleet_manager",
-    orgName: string = "Metro Fleet Logistics Ltd"
-  ): Promise<{ success: boolean; redirectUrl: string }> => {
+    password: string
+  ): Promise<{ success: boolean; user: User; redirectUrl: string }> => {
     setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
 
-    const authUser: User = {
-      ...DEMO_USER,
-      email,
-      name:
-        email.split("@")[0].replace(/[\._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) ||
-        ROLE_CONFIGS[role].label,
-      role,
-      organizationName: orgName,
-    };
+      const data = await res.json();
 
-    const dummyToken = `jwt_${Date.now()}_fi360`;
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Invalid email or password");
+      }
 
-    setUser(authUser);
-    setToken(dummyToken);
+      const authenticatedUser: User = {
+        id: data.user.userId,
+        name: data.user.name,
+        email: data.user.email,
+        role: data.user.role,
+        organizationId: data.user.organizationId,
+        organizationName: data.user.organizationName,
+        plan: data.user.plan || "Professional",
+      };
 
-    localStorage.setItem("fi360_auth_token", dummyToken);
-    localStorage.setItem("fi360_auth_user", JSON.stringify(authUser));
+      setUser(authenticatedUser);
+      setToken(data.token);
 
-    setIsLoading(false);
-    const redirectUrl = getDefaultRouteForRole(role);
-    return { success: true, redirectUrl };
+      localStorage.setItem("fi360_auth_token", data.token);
+      localStorage.setItem("fi360_auth_user", JSON.stringify(authenticatedUser));
+
+      const redirectUrl =
+        data.redirectUrl || getDefaultRouteForRole(authenticatedUser.role);
+
+      return { success: true, user: authenticatedUser, redirectUrl };
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const switchRole = (newRole: UserRole) => {
-    if (!user) return;
-    const updatedUser = { ...user, role: newRole };
-    setUser(updatedUser);
-    localStorage.setItem("fi360_auth_user", JSON.stringify(updatedUser));
-    const target = getDefaultRouteForRole(newRole);
-    router.push(target);
+  /**
+   * Customer account registration:
+   * Dispatches to /api/auth/register.
+   */
+  const register = async (data: {
+    email: string;
+    password: string;
+    name: string;
+    organizationName: string;
+  }): Promise<{ success: boolean; user: User; redirectUrl: string }> => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+
+      const resData = await res.json();
+
+      if (!res.ok || !resData.success) {
+        throw new Error(resData.message || "Registration failed. Please check inputs.");
+      }
+
+      const newUser: User = {
+        id: resData.user.userId,
+        name: resData.user.name,
+        email: resData.user.email,
+        role: resData.user.role,
+        organizationId: resData.user.organizationId,
+        organizationName: resData.user.organizationName,
+        plan: "Professional",
+      };
+
+      setUser(newUser);
+      setToken(resData.token);
+
+      localStorage.setItem("fi360_auth_token", resData.token);
+      localStorage.setItem("fi360_auth_user", JSON.stringify(newUser));
+
+      return {
+        success: true,
+        user: newUser,
+        redirectUrl: resData.redirectUrl || "/dashboard",
+      };
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const logout = () => {
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem("fi360_auth_token");
-    localStorage.removeItem("fi360_auth_user");
-    router.push("/login");
+  /**
+   * Session termination:
+   * Invalidates server cookie and clears client credentials.
+   */
+  const logout = async () => {
+    try {
+      await fetch(`${API_BASE}/api/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {
+      // Ignored: continue client cleanup
+    } finally {
+      localStorage.removeItem("fi360_auth_token");
+      localStorage.removeItem("fi360_auth_user");
+      setUser(null);
+      setToken(null);
+      router.push("/login");
+    }
   };
 
   return (
@@ -121,9 +242,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         token,
         isLoading,
         login,
+        register,
         logout,
         isAuthenticated: !!user,
-        switchRole,
+        refreshSession,
       }}
     >
       {children}

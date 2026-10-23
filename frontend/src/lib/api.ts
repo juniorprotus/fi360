@@ -2,6 +2,26 @@ import { Vehicle, FleetMetrics, BackendHealth } from "../types/fleet";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000";
 
+/**
+ * Attaches Authorization Bearer token to backend requests and enables credentials.
+ */
+function authFetch(url: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const isBackendCall = typeof url === "string" && url.startsWith(API_BASE);
+  if (isBackendCall && typeof window !== "undefined") {
+    const token = localStorage.getItem("fi360_auth_token");
+    const headers = new Headers(init?.headers || {});
+    if (token && !headers.has("Authorization")) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+    return fetch(url, {
+      ...init,
+      headers,
+      credentials: "include",
+    });
+  }
+  return fetch(url, init);
+}
+
 const LOCAL_STORAGE_KEY = "fi360_persisted_vehicles";
 const TYRES_STORAGE_KEY = "fi360_persisted_tyres";
 const FUEL_STORAGE_KEY = "fi360_persisted_fuel";
@@ -127,7 +147,7 @@ function setLocalItem<T>(key: string, items: T[]) {
 
 export async function fetchHealth(): Promise<{ data: BackendHealth; isFallback: boolean }> {
   try {
-    const res = await fetch(`${API_BASE}/api/health`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
+    const res = await authFetch(`${API_BASE}/api/health`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     return { data, isFallback: false };
@@ -149,7 +169,7 @@ export async function fetchHealth(): Promise<{ data: BackendHealth; isFallback: 
 
 export async function fetchAIPrediction(telematicsData: any): Promise<{ data: any; isFallback: boolean }> {
   try {
-    const res = await fetch(`${API_BASE}/api/ai/predict-maintenance`, {
+    const res = await authFetch(`${API_BASE}/api/ai/predict-maintenance`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ telematicsData }),
@@ -185,7 +205,7 @@ export async function fetchAIPrediction(telematicsData: any): Promise<{ data: an
 
 export async function fetchVehicles(): Promise<{ data: Vehicle[]; isFallback: boolean }> {
   try {
-    const res = await fetch(`${API_BASE}/api/vehicles`, { cache: "no-store", signal: AbortSignal.timeout(6000) });
+    const res = await authFetch(`${API_BASE}/api/vehicles`, { cache: "no-store", signal: AbortSignal.timeout(6000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     const list: Vehicle[] = json.data || [];
@@ -199,7 +219,7 @@ export async function fetchVehicles(): Promise<{ data: Vehicle[]; isFallback: bo
 
 export async function fetchVehicleById(id: string): Promise<Vehicle | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/vehicles/${id}`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
+    const res = await authFetch(`${API_BASE}/api/vehicles/${id}`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     return json.data;
@@ -211,7 +231,7 @@ export async function fetchVehicleById(id: string): Promise<Vehicle | null> {
 
 export async function createVehicle(payload: Partial<Vehicle>): Promise<Vehicle> {
   try {
-    const res = await fetch(`${API_BASE}/api/vehicles`, {
+    const res = await authFetch(`${API_BASE}/api/vehicles`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -264,7 +284,7 @@ export async function createVehicle(payload: Partial<Vehicle>): Promise<Vehicle>
 
 export async function updateVehicle(id: string, updates: Partial<Vehicle>): Promise<Vehicle | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/vehicles/${id}`, {
+    const res = await authFetch(`${API_BASE}/api/vehicles/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
@@ -306,7 +326,7 @@ export async function updateVehicle(id: string, updates: Partial<Vehicle>): Prom
 
 export async function deleteVehicle(id: string): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/api/vehicles/${id}`, {
+    const res = await authFetch(`${API_BASE}/api/vehicles/${id}`, {
       method: "DELETE",
       signal: AbortSignal.timeout(6000),
     });
@@ -331,7 +351,7 @@ export async function deleteVehicle(id: string): Promise<boolean> {
 
 export async function fetchVehicleMetrics(): Promise<{ data: FleetMetrics; isFallback: boolean }> {
   try {
-    const res = await fetch(`${API_BASE}/api/vehicles/metrics`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
+    const res = await authFetch(`${API_BASE}/api/vehicles/metrics`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     return { data: json.data, isFallback: false };
@@ -369,7 +389,7 @@ export interface TyreItem {
 
 export async function fetchTyres(): Promise<TyreItem[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/tyres`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
+    const res = await authFetch(`${API_BASE}/api/tyres`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
     if (res.ok) {
       const json = await res.json();
       setLocalItem(TYRES_STORAGE_KEY, json.data);
@@ -381,7 +401,7 @@ export async function fetchTyres(): Promise<TyreItem[]> {
 
 export async function createTyre(payload: TyreItem): Promise<TyreItem> {
   try {
-    const res = await fetch(`${API_BASE}/api/tyres`, {
+    const res = await authFetch(`${API_BASE}/api/tyres`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -403,7 +423,7 @@ export async function createTyre(payload: TyreItem): Promise<TyreItem> {
 
 export async function updateTyre(id: string, updates: Partial<TyreItem>): Promise<TyreItem | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/tyres/${id}`, {
+    const res = await authFetch(`${API_BASE}/api/tyres/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
@@ -429,7 +449,7 @@ export async function updateTyre(id: string, updates: Partial<TyreItem>): Promis
 
 export async function deleteTyre(id: string): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/api/tyres/${id}`, {
+    const res = await authFetch(`${API_BASE}/api/tyres/${id}`, {
       method: "DELETE",
       signal: AbortSignal.timeout(5000),
     });
@@ -461,7 +481,7 @@ export interface FuelItem {
 
 export async function fetchFuelLogs(): Promise<FuelItem[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/fuel`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
+    const res = await authFetch(`${API_BASE}/api/fuel`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
     if (res.ok) {
       const json = await res.json();
       setLocalItem(FUEL_STORAGE_KEY, json.data);
@@ -473,7 +493,7 @@ export async function fetchFuelLogs(): Promise<FuelItem[]> {
 
 export async function createFuelLog(payload: FuelItem): Promise<FuelItem> {
   try {
-    const res = await fetch(`${API_BASE}/api/fuel`, {
+    const res = await authFetch(`${API_BASE}/api/fuel`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -510,7 +530,7 @@ export interface WorkOrderItem {
 
 export async function fetchWorkOrders(): Promise<WorkOrderItem[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/maintenance`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
+    const res = await authFetch(`${API_BASE}/api/maintenance`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
     if (res.ok) {
       const json = await res.json();
       // Format populated vehicleId if needed
@@ -536,7 +556,7 @@ export async function createWorkOrder(payload: WorkOrderItem): Promise<WorkOrder
       vehicleId: matched?._id || matched?.id || "6ac43a651bf32b260320aa6c",
     };
 
-    const res = await fetch(`${API_BASE}/api/maintenance`, {
+    const res = await authFetch(`${API_BASE}/api/maintenance`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(apiPayload),
@@ -559,7 +579,7 @@ export async function createWorkOrder(payload: WorkOrderItem): Promise<WorkOrder
 
 export async function updateWorkOrderStatus(id: string, status: "scheduled" | "in_progress" | "completed"): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/api/maintenance/${id}`, {
+    const res = await authFetch(`${API_BASE}/api/maintenance/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
@@ -595,7 +615,7 @@ export interface InspectionItem {
 
 export async function fetchInspections(): Promise<InspectionItem[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/inspections`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
+    const res = await authFetch(`${API_BASE}/api/inspections`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
     if (res.ok) {
       const json = await res.json();
       setLocalItem(INSPECTIONS_STORAGE_KEY, json.data);
@@ -607,7 +627,7 @@ export async function fetchInspections(): Promise<InspectionItem[]> {
 
 export async function createInspection(payload: InspectionItem): Promise<InspectionItem> {
   try {
-    const res = await fetch(`${API_BASE}/api/inspections`, {
+    const res = await authFetch(`${API_BASE}/api/inspections`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -644,7 +664,7 @@ export interface TripItem {
 
 export async function fetchTrips(): Promise<TripItem[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/transport`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
+    const res = await authFetch(`${API_BASE}/api/transport`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
     if (res.ok) {
       const json = await res.json();
       setLocalItem(TRIPS_STORAGE_KEY, json.data);
@@ -656,7 +676,7 @@ export async function fetchTrips(): Promise<TripItem[]> {
 
 export async function createTrip(payload: TripItem): Promise<TripItem> {
   try {
-    const res = await fetch(`${API_BASE}/api/transport`, {
+    const res = await authFetch(`${API_BASE}/api/transport`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -678,7 +698,7 @@ export async function createTrip(payload: TripItem): Promise<TripItem> {
 
 export async function updateTripStatus(id: string, status: "dispatched" | "in_transit" | "delivered" | "delayed"): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/api/transport/${id}`, {
+    const res = await authFetch(`${API_BASE}/api/transport/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
@@ -715,7 +735,7 @@ export interface DriverItem {
 
 export async function fetchDrivers(): Promise<DriverItem[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/drivers`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
+    const res = await authFetch(`${API_BASE}/api/drivers`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
     if (res.ok) {
       const json = await res.json();
       const list = (json.data || []).map((d: any) => ({
@@ -732,7 +752,7 @@ export async function fetchDrivers(): Promise<DriverItem[]> {
 
 export async function createDriver(payload: DriverItem): Promise<DriverItem> {
   try {
-    const res = await fetch(`${API_BASE}/api/drivers`, {
+    const res = await authFetch(`${API_BASE}/api/drivers`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

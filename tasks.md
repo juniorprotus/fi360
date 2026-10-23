@@ -78,3 +78,24 @@
     - Public Transit and Urban Mobility (fleet visibility and maintenance planning for public transport).
     - Intermodal Container Logistics (coordinating transport assets and operational visibility).
 - [x] Verified full production Turbopack build (`next build` compiled all 29 routes statically with 0 errors).
+
+## Production Authentication, Authorization & Customer Account Management
+- [x] Backend Authentication & Session Architecture:
+  - Created `backend/src/modules/auth/user.model.ts` with Mongoose `User` schema, bcrypt 12-round password hashing, and `select: false` security for password hashes.
+  - Implemented `AuthService` (`backend/src/modules/auth/auth.service.ts`): cryptographically signed JWT issuance, password verification, self-service registration, user profile retrieval, and single-use SHA256 hashed password reset token workflow.
+  - Implemented Express `authenticate` middleware and `requireRole` RBAC middleware (`backend/src/modules/auth/auth.middleware.ts`), returning HTTP 401 for unauthenticated/forged requests and HTTP 403 for unauthorized role actions.
+  - Mounted secure routes (`backend/src/modules/auth/auth.routes.ts`) with IP rate limiting (20 attempts / 15m), Zod payload validation, and HttpOnly `fi360_token` cookie management.
+  - Created organization team provisioning endpoint (`backend/src/modules/auth/user.routes.ts`) allowing organization owners and admins to list, invite, and manage team members within their organization boundary.
+  - Created secure initial administrator bootstrap CLI script (`backend/src/scripts/bootstrap-admin.ts`), requiring explicit environment credentials (`BOOTSTRAP_ADMIN_PASSWORD` >= 10 chars) and refusing to overwrite existing accounts.
+  - Applied `authenticate` middleware across all backend API subsystems (`/api/vehicles`, `/api/drivers`, `/api/maintenance`, `/api/ai`, `/api/tyres`, `/api/fuel`, `/api/inspections`, `/api/transport`, `/api/organizations`), while keeping `/api/health` open for Render uptime monitoring.
+- [x] Frontend Integration & Mock Elimination:
+  - Removed all mock authentication, simulated delays, fake JWT tokens, and hardcoded test users from `frontend/src/lib/auth/AuthContext.tsx`.
+  - Replaced client-side role dropdown on `frontend/src/app/(auth)/login/page.tsx` with production email + password authentication; user role and organization are strictly derived from trusted server-side records.
+  - Implemented verified session rehydration (`/api/auth/me`) on page refresh — never treats browser `localStorage` as authoritative proof of authentication.
+  - Updated `frontend/src/app/(auth)/register/page.tsx` to execute genuine organization + owner registration.
+  - Updated `frontend/src/lib/api.ts` with `authFetch` wrapper attaching `Authorization: Bearer <token>` and credentials to all backend calls.
+- [x] Automated Testing & Quality Verification:
+  - Created automated test suite `backend/src/scripts/test-auth.ts` (`npm run test:auth`), testing 10 security assertions (401 on unregistered credentials, 401 on forged tokens, 401 on wrong passwords, 201 on registration, 200 on login, 200 on `/api/auth/me`, 200 on protected data access, 401 without token, 200 on `/api/health`, 200 on logout).
+  - Executed `npm run test:auth` — 10/10 tests passed (0 failures).
+  - Executed `npm run lint` in backend — TypeScript compilation passed with 0 errors.
+  - Executed `next build` in frontend — compiled all 29 routes statically with 0 errors.

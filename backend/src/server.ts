@@ -15,6 +15,11 @@ import { fuelRoutes } from "./modules/fuel/fuel.routes";
 import { inspectionRoutes } from "./modules/inspections/inspection.routes";
 import { transportRoutes } from "./modules/transport/transport.routes";
 
+import cookieParser from "cookie-parser";
+import { authRoutes } from "./modules/auth/auth.routes";
+import { userRoutes } from "./modules/auth/user.routes";
+import { authenticate } from "./modules/auth/auth.middleware";
+
 // Load .env file first
 dotenv.config();
 
@@ -27,6 +32,7 @@ const startTime = Date.now();
 
 // 1. Security & Standard Middlewares
 app.use(helmet());
+app.use(cookieParser());
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -71,6 +77,7 @@ app.get("/api/health", (_req: Request, res: Response) => {
     timestamp: new Date().toISOString(),
     database: dbStatus,
     modules: {
+      auth: "active",
       vehicles: "active",
       drivers: "active",
       maintenance: "active",
@@ -89,6 +96,10 @@ app.get("/", (_req: Request, res: Response) => {
     docs: "/api/health",
     endpoints: [
       "/api/health",
+      "/api/auth/login",
+      "/api/auth/register",
+      "/api/auth/me",
+      "/api/users",
       "/api/organizations",
       "/api/vehicles",
       "/api/drivers",
@@ -97,16 +108,20 @@ app.get("/", (_req: Request, res: Response) => {
   });
 });
 
-// 3. Modular API Subsystems
-app.use("/api/organizations", organizationRoutes);
-app.use("/api/vehicles", vehicleRoutes);
-app.use("/api/drivers", driverRoutes);
-app.use("/api/maintenance", maintenanceRoutes);
-app.use("/api/ai", aiRoutes);
-app.use("/api/tyres", tyreRoutes);
-app.use("/api/fuel", fuelRoutes);
-app.use("/api/inspections", inspectionRoutes);
-app.use("/api/transport", transportRoutes);
+// 3. Public Auth Routes
+app.use("/api/auth", authRoutes);
+
+// 4. Protected Subsystems (Require Authenticated Bearer Token or Session Cookie)
+app.use("/api/users", userRoutes);
+app.use("/api/organizations", authenticate, organizationRoutes);
+app.use("/api/vehicles", authenticate, vehicleRoutes);
+app.use("/api/drivers", authenticate, driverRoutes);
+app.use("/api/maintenance", authenticate, maintenanceRoutes);
+app.use("/api/ai", authenticate, aiRoutes);
+app.use("/api/tyres", authenticate, tyreRoutes);
+app.use("/api/fuel", authenticate, fuelRoutes);
+app.use("/api/inspections", authenticate, inspectionRoutes);
+app.use("/api/transport", authenticate, transportRoutes);
 
 // 4. 404 Handler
 app.use((_req: Request, res: Response) => {
