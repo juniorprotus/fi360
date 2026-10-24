@@ -35,7 +35,14 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000";
+const API_BASE: string = (() => {
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl) return envUrl;
+  if (process.env.NODE_ENV === 'development') {
+    return 'http://127.0.0.1:5000';
+  }
+  throw new Error('NEXT_PUBLIC_API_URL environment variable is not set. Please configure the API base URL.');
+})();
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -63,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const res = await fetch(`${API_BASE}/api/auth/me`, {
+      const res = await fetch(`${API_BASE!}/api/auth/me`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${storedToken}`,
@@ -121,7 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   ): Promise<{ success: boolean; user: User; redirectUrl: string }> => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/auth/login`, {
+      const res = await fetch(`${API_BASE!}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -173,7 +180,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }): Promise<{ success: boolean; user: User; redirectUrl: string }> => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/auth/register`, {
+      const res = await fetch(`${API_BASE!}/api/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
