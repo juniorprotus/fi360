@@ -83,6 +83,13 @@ router.post("/login", authLimiter, async (req: Request, res: Response): Promise<
       redirectUrl: result.redirectUrl,
     });
   } catch (error) {
+    if (error instanceof AuthDatabaseUnavailableError) {
+      res.status(503).json({
+        success: false,
+        message: "Authentication service is temporarily unavailable.",
+      });
+      return;
+    }
     res.status(401).json({
       success: false,
       message: error instanceof Error ? error.message : "Authentication failed.",
@@ -115,6 +122,13 @@ router.post("/register", authLimiter, async (req: Request, res: Response): Promi
       redirectUrl: result.redirectUrl,
     });
   } catch (error) {
+    if (error instanceof AuthDatabaseUnavailableError) {
+      res.status(503).json({
+        success: false,
+        message: "Authentication service is temporarily unavailable.",
+      });
+      return;
+    }
     res.status(400).json({
       success: false,
       message: error instanceof Error ? error.message : "Registration failed.",

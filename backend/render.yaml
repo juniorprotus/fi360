@@ -10,7 +10,7 @@ services:
     region: oregon   # Closest to most Atlas M0 free regions
     plan: free
     rootDir: backend
-    buildCommand: npm ci
+    buildCommand: npm ci && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeploy: true  # Auto-deploy on push to main
@@ -30,5 +30,7 @@ services:
       # Secrets — Add these manually in Render Dashboard:
       # - key: MONGODB_URI
       #   value: mongodb+srv://...
+      # - key: JWT_SECRET
+      #   value: generate a unique cryptographically random value in Render
       # - key: GEMINI_API_KEY
       #   value: your-key

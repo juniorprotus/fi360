@@ -145,6 +145,19 @@
 - [x] Tightened the employee-management route check and sidebar filter to prevent broad `/dashboard` route prefixes from exposing the admin management path to non-admin roles.
 - [x] Focused frontend TypeScript check and production build passed; focused lint had no new errors. Existing API-client lint violations remain at earlier lines, outside the added user API helpers.
 - [x] Stopped temporary services and removed the temporary MongoDB binary cache; no database or production configuration was changed.
+
+## 2026-10-24 Backend Production Build and Database-Backed Authentication
+- [x] Replaced the backend `build` script that only installed packages with a TypeScript CommonJS production build; configured `npm start` to run the compiled `dist/server.js`.
+- [x] Added a build-specific TypeScript configuration matching Node's CommonJS runtime and excluding test scripts from production output.
+- [x] Updated Render's build command to compile after `npm ci` and added the compiled entry-point details to the deployment guide.
+- [x] Made server startup conditional on direct execution so tests can import the real Express app without opening an unrelated listener.
+- [x] Made production login, registration, and session validation fail closed when MongoDB is unavailable, returning service-unavailable responses rather than using in-memory accounts.
+- [x] Started the compiled production server against temporary MongoDB; its health endpoint returned HTTP 200 with the database connected.
+- [x] Added `npm run test:auth:memory`, which creates a loopback-only MongoDB database named `fi360_auth_test`, validates its generated URI, rejects production invocation, requires database connectivity, and stops the server/database in `finally`.
+- [x] MongoDB-backed authentication suite passed 21 assertions: registration/login, invalid credentials, password hashing and response redaction, database organization membership, protected access, cookie attributes, logout, role-change enforcement, suspension/deletion revocation, and HTTP 503 behavior after database disconnect.
+- [x] Existing `npm run test:users:memory` passed all 28 database-backed assertions.
+- [x] Backend TypeScript check and production compilation passed; schema tests (20 checks), body-parser tests (4 checks), `npm audit` (0 vulnerabilities), and `git diff --check` passed.
+- [x] Documented the required Render `JWT_SECRET` secret after supplied failed-deployment logs confirmed the configured service did not have this required production variable. No deployment or production settings were changed.
 - [x] Resolved the body-parser DoS advisory by updating the compatible Express 4 transitive dependency from 1.20.8 to 1.20.9.
 - [x] Upgraded Zod from 3.25.76 to patched 4.6.7; the backend TypeScript check passes without schema API migration errors.
 - [x] Bounded organization module selections to the six supported modules and added schema behavior tests for field requirements, boundaries, defaults, and error formatting.

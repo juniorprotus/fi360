@@ -141,13 +141,13 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   });
 });
 
-// 6. Connect to MongoDB Atlas, then start server
-connectDB().finally(() => {
+async function startServer(): Promise<void> {
+  await connectDB();
   const server = app.listen(PORT, () => {
     console.log(`\n🚀 FI360 Backend running on port ${PORT}`);
     console.log(`🌍 Environment: ${config.NODE_ENV}`);
     console.log(`🩺 Health: http://localhost:${PORT}/api/health`);
-    console.log(`📦 DB: ${isDbConnected() ? "✅ MongoDB Atlas" : "⚠️ Offline Fallback"}\n`);
+    console.log(`📦 DB: ${isDbConnected() ? "✅ MongoDB connected" : "⚠️ Offline Fallback"}\n`);
   });
 
   // Graceful shutdown on Render restart / SIGTERM
@@ -158,6 +158,16 @@ connectDB().finally(() => {
       process.exit(0);
     });
   });
-});
+}
+
+if (require.main === module) {
+  void startServer().catch((error: unknown) => {
+    console.error(
+      "Backend startup failed:",
+      error instanceof Error ? error.message : "Unknown startup error."
+    );
+    process.exitCode = 1;
+  });
+}
 
 export default app;

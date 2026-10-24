@@ -24,6 +24,12 @@ export class AuthDatabaseUnavailableError extends Error {
 }
 
 export class AuthService {
+  private static requireProductionDatabase(): void {
+    if (process.env.NODE_ENV === "production" && !isDbConnected()) {
+      throw new AuthDatabaseUnavailableError();
+    }
+  }
+
   private static getJwtSecret(): string {
     const env = getEnv();
     return env.JWT_SECRET;
@@ -62,6 +68,7 @@ export class AuthService {
     email: string,
     password: string
   ): Promise<{ token: string; user: AuthUserPayload; redirectUrl: string }> {
+    this.requireProductionDatabase();
     const normalizedEmail = email.trim().toLowerCase();
 
     let user: IUser | null = null;
@@ -129,6 +136,7 @@ export class AuthService {
     name: string;
     organizationName: string;
   }): Promise<{ token: string; user: AuthUserPayload; redirectUrl: string }> {
+    this.requireProductionDatabase();
     const normalizedEmail = data.email.trim().toLowerCase();
 
     if (isDbConnected()) {
@@ -212,6 +220,7 @@ export class AuthService {
    * Get current authenticated user profile
    */
   public static async getCurrentUser(userId: string): Promise<AuthUserPayload> {
+    this.requireProductionDatabase();
     let user: IUser | null = null;
 
     if (isDbConnected()) {

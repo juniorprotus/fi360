@@ -17,6 +17,8 @@
 | **Environment** | `Node` |
 | **Instance Type** | Free |
 
+The build compiles TypeScript to CommonJS in `backend/dist`; `npm start` runs the generated `dist/server.js` entry point.
+
 ### C. Set Environment Variables
 In Render → Service → **Environment** tab, add:
 
@@ -24,8 +26,11 @@ In Render → Service → **Environment** tab, add:
 |---|---|
 | `NODE_ENV` | `production` |
 | `MONGODB_URI` | your Atlas connection string |
+| `JWT_SECRET` | A unique, cryptographically random secret stored as a Render secret environment variable (at least 16 characters; do not use the development default) |
 | `FRONTEND_URL` | `https://your-app.vercel.app` (update after Vercel deploy) |
 | `GEMINI_API_KEY` | your Gemini key (Phase 4) |
+
+The service intentionally refuses to start in production unless both `MONGODB_URI` and a secure `JWT_SECRET` are configured. Do not put secret values in `render.yaml` or source control.
 
 ### D. Get Your Render URL
 After deploying, Render assigns a URL like:

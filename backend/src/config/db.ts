@@ -24,7 +24,7 @@ export async function connectDB(): Promise<void> {
     // Attach lifecycle listeners BEFORE connect() to capture all events
     mongoose.connection.on("connected", () => {
       isConnected = true;
-      console.log("✅ MongoDB Atlas connected successfully.");
+      console.log("✅ MongoDB connected successfully.");
     });
 
     mongoose.connection.on("error", (err) => {
