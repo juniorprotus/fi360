@@ -10,7 +10,11 @@
     "lint": "tsc --noEmit",
     "seed": "tsx src/scripts/seed.ts",
     "bootstrap:admin": "tsx src/scripts/bootstrap-admin.ts",
-    "test:auth": "tsx src/scripts/test-auth.ts"
+    "test:auth": "tsx src/scripts/test-auth.ts",
+    "test:body-parser": "tsx src/scripts/test-body-parser.ts",
+    "test:schemas": "tsx src/scripts/test-schemas.ts",
+    "test:users": "tsx src/scripts/test-users.ts",
+    "test:users:memory": "tsx src/scripts/test-users-memory.ts"
   },
   "keywords": [
     "fleet-management",
@@ -39,11 +43,12 @@
     "morgan": "^1.10.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
-    "zod": "^3.24.1"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/cookie-parser": "^1.4.10",
-    "@types/jsonwebtoken": "^9.0.10"
+    "@types/jsonwebtoken": "^9.0.10",
+    "mongodb-memory-server": "^11.3.0"
   }
 }

@@ -1,14 +1,23 @@
-export type UserRole =
-  | "owner"
-  | "admin"
-  | "fleet_manager"
-  | "workshop_manager"
-  | "technician"
-  | "driver"
-  | "dispatcher"
-  | "compliance"
-  | "finance"
-  | "viewer";
+export const USER_ROLES = [
+  "owner",
+  "admin",
+  "fleet_manager",
+  "workshop_manager",
+  "technician",
+  "driver",
+  "dispatcher",
+  "compliance",
+  "finance",
+  "viewer",
+] as const;
+
+export type UserRole = (typeof USER_ROLES)[number];
+
+export const USER_STATUSES = ["active", "invited", "suspended"] as const;
+
+export type UserStatus = (typeof USER_STATUSES)[number];
+
+export const USER_MANAGEABLE_STATUSES = ["active", "suspended"] as const;
 
 export interface AuthUserPayload {
   userId: string;
@@ -22,7 +31,6 @@ export interface AuthUserPayload {
 
 export interface LoginResponse {
   success: boolean;
-  token: string;
   user: AuthUserPayload;
   redirectUrl: string;
 }

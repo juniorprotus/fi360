@@ -1,4 +1,5 @@
 import { Vehicle, FleetMetrics, BackendHealth } from "../types/fleet";
+import type { UserRole } from "./auth/rbac";
 
 const API_BASE: string = (() => {
   const envUrl = process.env.NEXT_PUBLIC_API_URL;
@@ -786,4 +787,104 @@ export async function createDriver(payload: DriverItem): Promise<DriverItem> {
   const list = getLocalItem<DriverItem>(DRIVERS_STORAGE_KEY, []);
   setLocalItem(DRIVERS_STORAGE_KEY, [newItem, ...list]);
   return newItem;
+}
+
+export interface OrganizationUser {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  organizationId?: string;
+  status: "active" | "invited" | "suspended";
+  createdAt?: string;
+  updatedAt?: string;
+  lastLoginAt?: string;
+}
+
+export class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number
+  ) {
+    super(message);
+    this.name = "ApiRequestError";
+  }
+}
+
+interface UserApiEnvelope {
+  success?: unknown;
+  message?: unknown;
+  data?: unknown;
+}
+
+async function requestUserApi<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await authFetch(`${API_BASE}/api/users${path}`, {
+    ...init,
+    cache: "no-store",
+    signal: AbortSignal.timeout(10000),
+  });
+
+  let body: UserApiEnvelope | null = null;
+  try {
+    body = (await response.json()) as UserApiEnvelope;
+  } catch {
+    body = null;
+  }
+
+  if (!response.ok || body?.success === false) {
+    const message =
+      typeof body?.message === "string"
+        ? body.message
+        : response.status === 401
+          ? "Your session has expired. Sign in again to continue."
+          : response.status === 403
+            ? "You do not have permission to manage organization employees."
+            : "The employee request could not be completed.";
+    throw new ApiRequestError(message, response.status);
+  }
+
+  if (!body || !("data" in body)) {
+    throw new ApiRequestError("The server returned an invalid employee response.", response.status);
+  }
+
+  return body.data as T;
+}
+
+export async function fetchOrganizationUsers(): Promise<OrganizationUser[]> {
+  return requestUserApi<OrganizationUser[]>("");
+}
+
+export async function createOrganizationUser(input: {
+  name: string;
+  email: string;
+  password: string;
+  role: UserRole;
+}): Promise<OrganizationUser> {
+  return requestUserApi<OrganizationUser>("", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateOrganizationUserRole(
+  id: string,
+  role: UserRole
+): Promise<OrganizationUser> {
+  return requestUserApi<OrganizationUser>(`/${encodeURIComponent(id)}/role`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ role }),
+  });
+}
+
+export async function updateOrganizationUserStatus(
+  id: string,
+  status: "active" | "suspended"
+): Promise<OrganizationUser> {
+  return requestUserApi<OrganizationUser>(`/${encodeURIComponent(id)}/status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
 }

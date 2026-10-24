@@ -9,6 +9,20 @@ import { isDbConnected } from "../../config/db";
 // In-memory fallback registry for offline development mode when MongoDB Atlas is unreachable
 const inMemoryUsers: Map<string, { user: IUser; passwordHash: string }> = new Map();
 
+export class InvalidUserSessionError extends Error {
+  constructor() {
+    super("User session is invalid or has been revoked.");
+    this.name = "InvalidUserSessionError";
+  }
+}
+
+export class AuthDatabaseUnavailableError extends Error {
+  constructor() {
+    super("Authentication database is unavailable.");
+    this.name = "AuthDatabaseUnavailableError";
+  }
+}
+
 export class AuthService {
   private static getJwtSecret(): string {
     const env = getEnv();
@@ -209,10 +223,14 @@ export class AuthService {
           break;
         }
       }
+
+      if (!user) {
+        throw new AuthDatabaseUnavailableError();
+      }
     }
 
     if (!user || user.status !== "active") {
-      throw new Error("User session is invalid or has been revoked.");
+      throw new InvalidUserSessionError();
     }
 
     return {

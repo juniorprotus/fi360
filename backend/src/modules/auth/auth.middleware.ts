@@ -1,5 +1,9 @@
 import { Request, Response, NextFunction } from "express";
-import { AuthService } from "./auth.service";
+import {
+  AuthDatabaseUnavailableError,
+  AuthService,
+  InvalidUserSessionError,
+} from "./auth.service";
 import { AuthUserPayload, UserRole } from "./auth.types";
 
 // Augment Express Request interface with authenticated user property
@@ -33,7 +37,7 @@ export function authenticate(
   req: Request,
   res: Response,
   next: NextFunction
-): void {
+): void | Promise<void> {
   const token = extractToken(req);
 
   if (!token) {
@@ -44,16 +48,39 @@ export function authenticate(
     return;
   }
 
+  let payload: AuthUserPayload;
   try {
-    const payload = AuthService.verifyToken(token);
-    req.user = payload;
-    next();
+    payload = AuthService.verifyToken(token);
   } catch (error) {
     res.status(401).json({
       success: false,
       message: "Session expired or invalid. Please sign in again.",
     });
+    return;
   }
+
+  return AuthService.getCurrentUser(payload.userId)
+    .then((currentUser) => {
+      req.user = currentUser;
+      next();
+    })
+    .catch((error: unknown) => {
+      if (error instanceof InvalidUserSessionError) {
+        res.status(401).json({
+          success: false,
+          message: "Session expired, invalid, or no longer active. Please sign in again.",
+        });
+        return;
+      }
+      if (error instanceof AuthDatabaseUnavailableError) {
+        res.status(503).json({
+          success: false,
+          message: "Authentication service is temporarily unavailable.",
+        });
+        return;
+      }
+      next(error);
+    });
 }
 
 /**

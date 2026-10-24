@@ -1,7 +1,7 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import rateLimit from "express-rate-limit";
-import { AuthService } from "./auth.service";
+import { AuthDatabaseUnavailableError, AuthService, InvalidUserSessionError } from "./auth.service";
 import { authenticate } from "./auth.middleware";
 
 const router = Router();
@@ -79,7 +79,6 @@ router.post("/login", authLimiter, async (req: Request, res: Response): Promise<
     res.status(200).json({
       success: true,
       message: "Authentication successful",
-      token: result.token,
       user: result.user,
       redirectUrl: result.redirectUrl,
     });
@@ -112,7 +111,6 @@ router.post("/register", authLimiter, async (req: Request, res: Response): Promi
     res.status(201).json({
       success: true,
       message: "Organization workspace successfully provisioned.",
-      token: result.token,
       user: result.user,
       redirectUrl: result.redirectUrl,
     });
@@ -128,7 +126,7 @@ router.post("/register", authLimiter, async (req: Request, res: Response): Promi
  * GET /api/auth/me
  * Session verification endpoint — rehydrates authenticated user profile on client refresh
  */
-router.get("/me", authenticate, async (req: Request, res: Response): Promise<void> => {
+router.get("/me", authenticate, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     if (!req.user?.userId) {
       res.status(401).json({ success: false, message: "Unauthorized." });
@@ -141,10 +139,21 @@ router.get("/me", authenticate, async (req: Request, res: Response): Promise<voi
       user: userProfile,
     });
   } catch (error) {
-    res.status(401).json({
-      success: false,
-      message: error instanceof Error ? error.message : "Session has expired or was revoked.",
-    });
+    if (error instanceof AuthDatabaseUnavailableError) {
+      res.status(503).json({
+        success: false,
+        message: "Authentication service is temporarily unavailable.",
+      });
+      return;
+    }
+    if (error instanceof InvalidUserSessionError) {
+      res.status(401).json({
+        success: false,
+        message: "Session has expired or was revoked.",
+      });
+      return;
+    }
+    next(error);
   }
 });
 

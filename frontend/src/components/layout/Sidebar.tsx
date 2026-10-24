@@ -22,6 +22,7 @@ import {
   Settings,
   Sparkles,
   LayoutDashboard,
+  UserCog,
   LucideIcon,
 } from "lucide-react";
 
@@ -75,6 +76,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         { name: "Telematics & IoT", href: "/dashboard/telematics", icon: Radio },
         { name: "Fleet Intelligence AI", href: "/dashboard/analytics", icon: Sparkles, badge: "AI 360" },
         { name: "Security & Tenancy", href: "/dashboard/admin", icon: Shield },
+        { name: "Employee Management", href: "/dashboard/admin/users", icon: UserCog },
         { name: "Interoperability API", href: "/dashboard/interop", icon: Layers },
         { name: "Organization Settings", href: "/dashboard/settings", icon: Settings },
       ],
@@ -85,9 +87,19 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const filteredSections = allNavigationSections
     .map((section) => ({
       ...section,
-      items: section.items.filter((item) =>
-        allowedHrefs.some((allowed) => item.href === allowed || item.href.startsWith(allowed + "/"))
-      ),
+      items: section.items.filter((item) => {
+        if (
+          item.href === "/dashboard/admin/users" &&
+          userRole !== "owner" &&
+          userRole !== "admin"
+        ) {
+          return false;
+        }
+
+        return allowedHrefs.some(
+          (allowed) => item.href === allowed || item.href.startsWith(allowed + "/")
+        );
+      }),
     }))
     .filter((section) => section.items.length > 0);
 
@@ -139,7 +151,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               </div>
               <div className="space-y-1">
                 {section.items.map((item) => {
-                  const isActive = pathname === item.href;
+                  const isActive =
+                    pathname === item.href ||
+                    (item.href === "/dashboard/admin/users" &&
+                      pathname.startsWith("/dashboard/admin/users/"));
                   const Icon = item.icon;
                   return (
                     <Link

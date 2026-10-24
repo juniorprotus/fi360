@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Automated Authentication & Security Test Suite
  * ===============================================
  * Validates backend authentication, session verification, RBAC,
@@ -10,6 +10,8 @@
 
 import http from "http";
 import app from "../server";
+import { AuthService } from "../modules/auth/auth.service";
+import { isDbConnected } from "../config/db";
 
 let server: http.Server;
 let baseUrl: string;
@@ -76,10 +78,23 @@ function assert(condition: boolean, testName: string, detail?: string) {
   }
 }
 
+function parseCookieHeader(setCookieHeader: string | string[] | undefined): string {
+  if (!setCookieHeader) return "";
+  const values = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
+
+  for (const value of values) {
+    const match = value.match(/fi360_token=([^;]*)/i);
+    if (match) {
+      return `fi360_token=${match[1]}`;
+    }
+  }
+
+  return "";
+}
+
 async function runTests() {
   console.log("\n🧪 ── FI360 Production Security & Auth Test Suite ──\n");
 
-  // Start temporary test server on ephemeral port
   await new Promise<void>((resolve) => {
     server = app.listen(0, () => {
       const addr = server.address();
@@ -91,10 +106,9 @@ async function runTests() {
 
   const testEmail = `test.operator.${Date.now()}@acmelogistics.com`;
   const testPassword = "SecurePassphrase123!";
-  let authToken = "";
+  let cookieHeader = "";
 
   try {
-    // Test 1: Random/Unregistered credentials must be rejected with 401
     console.log("▶ Test 1: Rejecting arbitrary unregistered credentials");
     const t1 = await request("POST", "/api/auth/login", {
       email: "random.nonexistent.user@xyz.org",
@@ -106,42 +120,57 @@ async function runTests() {
       `Got status ${t1.status}`
     );
 
-    // Test 2: Protected routes reject requests without a token (HTTP 401)
     console.log("\n▶ Test 2: Protected API endpoints enforce authentication");
     const t2 = await request("GET", "/api/vehicles");
     assert(
       t2.status === 401 && t2.body.success === false,
-      "GET /api/vehicles without token returns 401",
+      "GET /api/vehicles without cookie or token returns 401",
       `Got status ${t2.status}`
     );
 
-    // Test 3: Forged / invalid JWT token returns 401
-    console.log("\n▶ Test 3: Forged or invalid JWT tokens are rejected");
+    console.log("\n▶ Test 3: Forged or invalid cookie tokens are rejected");
     const t3 = await request("GET", "/api/vehicles", null, {
-      Authorization: "Bearer invalid.forged.token.signature",
+      Cookie: "fi360_token=not-a-real-token",
     });
     assert(
       t3.status === 401,
-      "Forged token returns 401",
+      "Forged cookie returns 401",
       `Got status ${t3.status}`
     );
 
-    // Test 4: Genuine registration creates organization and owner user
-    console.log("\n▶ Test 4: Genuine customer organization registration");
+    const unknownUserToken = AuthService.generateToken({
+      userId: "000000000000000000000000",
+      email: "unknown@example.test",
+      name: "Unknown User",
+      role: "owner",
+    });
+    const unknownUserSession = await request("GET", "/api/auth/me", null, {
+      Authorization: `Bearer ${unknownUserToken}`,
+    });
+    assert(
+      unknownUserSession.status === (isDbConnected() ? 401 : 503),
+      "Missing user and unavailable database return distinct responses",
+      `Got status ${unknownUserSession.status}`
+    );
+
+    console.log("\n▶ Test 4: Genuine registration creates organization and sets HttpOnly cookie");
     const t4 = await request("POST", "/api/auth/register", {
       email: testEmail,
       password: testPassword,
       name: "Acme Fleet Director",
       organizationName: "Acme Global Freight Ltd",
     });
+    const registrationCookie = parseCookieHeader(t4.headers["set-cookie"]);
     assert(
-      t4.status === 201 && t4.body.success === true && !!t4.body.token,
-      "Registration returns 201 Created with valid JWT",
-      `Got status ${t4.status}`
+      t4.status === 201 &&
+        t4.body.success === true &&
+        !!registrationCookie &&
+        !Object.prototype.hasOwnProperty.call(t4.body, "token"),
+      "Registration returns 201 and sets a cookie without exposing JWT in JSON",
+      `Got status ${t4.status} and cookie ${registrationCookie ? "set" : "missing"}`
     );
-    authToken = t4.body.token;
+    cookieHeader = registrationCookie || cookieHeader;
 
-    // Test 5: Wrong password for registered user is rejected with 401
     console.log("\n▶ Test 5: Wrong password for existing account is rejected");
     const t5 = await request("POST", "/api/auth/login", {
       email: testEmail,
@@ -153,48 +182,47 @@ async function runTests() {
       `Got status ${t5.status}`
     );
 
-    // Test 6: Valid credentials succeed and return token + profile
-    console.log("\n▶ Test 6: Legitimate login with correct credentials");
+    console.log("\n▶ Test 6: Legitimate login succeeds and returns cookie-only session data");
     const t6 = await request("POST", "/api/auth/login", {
       email: testEmail,
       password: testPassword,
     });
+    const loginCookie = parseCookieHeader(t6.headers["set-cookie"]);
     assert(
       t6.status === 200 &&
         t6.body.success === true &&
         t6.body.user.email === testEmail &&
-        t6.body.user.role === "owner",
-      "Login returns 200 OK with server-derived role and credentials",
-      `Got status ${t6.status}`
+        t6.body.user.role === "owner" &&
+        !!loginCookie &&
+        !Object.prototype.hasOwnProperty.call(t6.body, "token"),
+      "Login returns 200 OK with cookie-backed session and no JWT in JSON",
+      `Got status ${t6.status} and cookie ${loginCookie ? "set" : "missing"}`
     );
-    authToken = t6.body.token;
+    cookieHeader = loginCookie || cookieHeader;
 
-    // Test 7: Session verification (/api/auth/me) with valid token
-    console.log("\n▶ Test 7: Session verification (/api/auth/me)");
+    console.log("\n▶ Test 7: Session verification (/api/auth/me) with valid cookie");
     const t7 = await request("GET", "/api/auth/me", null, {
-      Authorization: `Bearer ${authToken}`,
+      Cookie: cookieHeader,
     });
     assert(
       t7.status === 200 &&
         t7.body.success === true &&
         t7.body.user.email === testEmail,
-      "Session verification returns current user profile",
+      "Session verification returns current user profile from cookie",
       `Got status ${t7.status}`
     );
 
-    // Test 8: Access protected endpoint with valid token succeeds
-    console.log("\n▶ Test 8: Accessing protected endpoints with valid token");
+    console.log("\n▶ Test 8: Accessing protected endpoints with valid cookie succeeds");
     const t8 = await request("GET", "/api/vehicles", null, {
-      Authorization: `Bearer ${authToken}`,
+      Cookie: cookieHeader,
     });
     assert(
       t8.status === 200 && t8.body.success === true,
-      "GET /api/vehicles with valid token returns 200",
+      "GET /api/vehicles with valid cookie returns 200",
       `Got status ${t8.status}`
     );
 
-    // Test 9: Public health check remains operational and unauthenticated
-    console.log("\n▶ Test 9: Public health check availability");
+    console.log("\n▶ Test 9: Public health check remains operational and unauthenticated");
     const t9 = await request("GET", "/api/health");
     assert(
       t9.status === 200 && t9.body.status === "ok",
@@ -202,13 +230,29 @@ async function runTests() {
       `Got status ${t9.status}`
     );
 
-    // Test 10: Logout invalidates session
-    console.log("\n▶ Test 10: Logout endpoint");
-    const t10 = await request("POST", "/api/auth/logout");
+    console.log("\n▶ Test 10: Logout endpoint clears the session cookie");
+    const t10 = await request("POST", "/api/auth/logout", null, {
+      Cookie: cookieHeader,
+    });
+    const clearedCookie = parseCookieHeader(t10.headers["set-cookie"]);
     assert(
-      t10.status === 200 && t10.body.success === true,
-      "POST /api/auth/logout responds with 200 OK",
-      `Got status ${t10.status}`
+      t10.status === 200 &&
+        t10.body.success === true &&
+        !!clearedCookie &&
+        clearedCookie.startsWith("fi360_token="),
+      "POST /api/auth/logout responds with 200 and clears fi360_token cookie",
+      `Got status ${t10.status} and cookie ${clearedCookie || "missing"}`
+    );
+    cookieHeader = "";
+
+    console.log("\n▶ Test 11: Cleared cookies are rejected for authenticated routes");
+    const t11 = await request("GET", "/api/auth/me", null, {
+      Cookie: cookieHeader,
+    });
+    assert(
+      t11.status === 401,
+      "Cleared cookie is rejected by /api/auth/me",
+      `Got status ${t11.status}`
     );
   } finally {
     server.close();

@@ -106,4 +106,48 @@
 - [x] Prevented the `/api/users` listing route from exposing global user data when an authenticated user lacks an organization membership.
 - [x] Removed browser-stored bearer-token reliance from the frontend auth flow, relying on verified server-side cookie sessions and `GET /api/auth/me` rehydration instead.
 - [x] Cleaned client-side logout/session clearing to remove stale bearer tokens from legacy storage and leave only secure cookie-driven auth state.
-- [x] Validated with backend TypeScript compilation and the FI360 auth regression suite (`10/10 tests passed`).
+- [x] Verified login and registration set the `fi360_token` HttpOnly cookie, reject invalid/cleared cookies, and expose no JWT value in the response body.
+- [x] Fixed the TypeScript `TS7053` issue in the vehicle metrics route and reran backend validation.
+- [x] Validated with backend TypeScript compilation and the FI360 auth regression suite (`11/11 tests passed`).
+
+## 2026-10-24 Organization User Management API
+- [x] Centralized backend role and account-status definitions for model validation and user-management request validation.
+- [x] Restricted member listing and management to active organization owners/administrators reloaded from the database.
+- [x] Updated authenticated requests to reload the current active user so suspension or role changes take effect for existing JWTs.
+- [x] Distinguished revoked/deleted sessions (401) from an unavailable offline database (503) in authenticated requests and `/api/auth/me`.
+- [x] Added organization-scoped user creation, status changes, and role changes; normalized email and mapped duplicate-key conflicts to HTTP 409.
+- [x] Rejected client-supplied fields outside each operation's contract; organization assignment comes only from the current administrator record.
+- [x] Enforced bcrypt's 72-byte password input limit for administrator-created accounts to avoid silently truncated password material.
+- [x] Blocked administrator promotion to owner/admin and protected owner accounts from status/role changes.
+- [x] Added MongoDB-backed `npm run test:users` integration coverage with local-host/test-database safety checks and a unique-email-index assertion.
+- [x] Backend TypeScript check passed; existing authentication regression suite passed (`12/12`).
+- [x] Added `npm run test:users:memory`, using a temporary loopback-only MongoDB 7.0.14 instance and the unchanged user-management integration suite.
+- [x] User-management integration suite passed against the temporary database (`28/28` assertions); the downloaded binary cache and MongoDB process were cleaned up.
+- [x] Authentication regression suite passed (`12/12`) in offline fallback mode; no application database URI was configured.
+- [x] Backend TypeScript check and `git diff --check` passed after adding the test runner.
+
+## 2026-10-24 Organization Employee Management Dashboard
+- [x] Added an organization employee management page at `/dashboard/admin/users`, accessible to owners and administrators through existing route RBAC.
+- [x] Connected organization user listing, employee creation, role updates, and activation/suspension to the existing cookie-authenticated `/api/users` endpoints.
+- [x] Applied the backend role-assignment and protected-account rules in the UI; confirmation is required before suspension.
+- [x] Added loading, empty, refresh, error, duplicate-email, session-expired, and access-denied handling with responsive light/dark styling.
+- [x] Frontend TypeScript check passed; focused ESLint reported 0 errors (one pre-existing unused Sidebar icon warning).
+- [x] Production build passed with a temporary, non-production `NEXT_PUBLIC_API_URL` for static generation; no environment setting was persisted.
+- [ ] Repository-wide frontend ESLint remains failing on existing lint errors in other files, including pre-existing `any` usage in `frontend/src/lib/api.ts`.
+
+## 2026-10-24 Employee Management End-to-End Verification
+- [x] Started a temporary MongoDB 7.0.14 instance bound to loopback and ran the backend with an isolated test database and temporary JWT secret; started the frontend with an explicit local API URL.
+- [x] Registered an owner through the frontend, opened Employee Management, listed the owner account, created an employee, and verified the employee was persisted with a bcrypt hash.
+- [x] Verified employee login, role update and persistence, duplicate-email feedback, password-field clearing, and recovery after a simulated API 503 without losing displayed rows.
+- [x] Verified a non-admin user's management API request returns 403, restricted employee-management navigation is hidden, and direct navigation redirects through RBAC.
+- [x] Registered a second organization and verified its member list excludes the first organization's employee; cross-organization status and role updates returned 404.
+- [x] Suspended and reactivated the employee through the UI; confirmed new login is rejected and a previously issued token receives 401 after suspension.
+- [x] Tightened the employee-management route check and sidebar filter to prevent broad `/dashboard` route prefixes from exposing the admin management path to non-admin roles.
+- [x] Focused frontend TypeScript check and production build passed; focused lint had no new errors. Existing API-client lint violations remain at earlier lines, outside the added user API helpers.
+- [x] Stopped temporary services and removed the temporary MongoDB binary cache; no database or production configuration was changed.
+- [x] Resolved the body-parser DoS advisory by updating the compatible Express 4 transitive dependency from 1.20.8 to 1.20.9.
+- [x] Upgraded Zod from 3.25.76 to patched 4.6.7; the backend TypeScript check passes without schema API migration errors.
+- [x] Bounded organization module selections to the six supported modules and added schema behavior tests for field requirements, boundaries, defaults, and error formatting.
+- [x] Added body-parser regressions confirming valid JSON, malformed JSON rejection, the existing 1 MB request limit, and valid gzip-compressed JSON.
+- [x] `npm run test:users:memory` passed all 28 assertions against isolated MongoDB; `npm run test:auth` passed 12 assertions in offline fallback mode.
+- [x] Backend TypeScript check, schema tests (20 checks), body-parser tests (4 checks), `npm audit` (0 vulnerabilities), installed dependency-tree verification, and `git diff --check` passed.

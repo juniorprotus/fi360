@@ -174,6 +174,14 @@ export function getDefaultRouteForRole(role: UserRole): string {
 }
 
 export function isRouteAllowedForRole(role: UserRole, pathname: string): boolean {
+  if (
+    (pathname === "/dashboard/admin/users" || pathname.startsWith("/dashboard/admin/users/")) &&
+    role !== "owner" &&
+    role !== "admin"
+  ) {
+    return false;
+  }
+
   const allowed = ROLE_CONFIGS[role]?.allowedNavHrefs || [];
   return allowed.some((prefix) => pathname === prefix || pathname.startsWith(prefix + "/"));
 }

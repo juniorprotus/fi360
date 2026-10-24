@@ -51,10 +51,17 @@ router.get("/metrics", async (req: Request, res: Response): Promise<void> => {
           (vehicle) => String(vehicle.organizationId ?? "000000000000000000000001") === organizationId
         );
 
-    const metrics = vehicles.reduce((acc, curr) => {
-      acc[curr.status] = (acc[curr.status] || 0) + 1;
-      return acc;
-    }, { active: 0, maintenance: 0, critical_failure: 0, inactive: 0 });
+    const metrics: Record<string, number> = {
+      active: 0,
+      maintenance: 0,
+      critical_failure: 0,
+      inactive: 0,
+    };
+
+    for (const curr of vehicles) {
+      const key = String(curr.status ?? "inactive");
+      metrics[key] = (metrics[key] ?? 0) + 1;
+    }
 
     res.json({ success: true, data: metrics });
   } catch (error) {

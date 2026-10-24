@@ -19,6 +19,7 @@ export const OrganizationCreateSchema = z.object({
   enabledModules: z
     .array(ModuleEnum)
     .min(1)
+    .max(6)
     .default(["vehicles", "drivers", "maintenance"]),
   contactEmail: z.string().email().optional(),
   phone: z.string().min(7).max(20).optional(),

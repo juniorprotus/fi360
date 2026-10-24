@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Types } from "mongoose";
 import bcrypt from "bcryptjs";
-import { UserRole } from "./auth.types";
+import { USER_ROLES, USER_STATUSES, UserRole, UserStatus } from "./auth.types";
 
 export interface IUser extends Document {
   _id: Types.ObjectId;
@@ -10,7 +10,7 @@ export interface IUser extends Document {
   role: UserRole;
   organizationId?: Types.ObjectId;
   organizationName?: string;
-  status: "active" | "invited" | "suspended";
+  status: UserStatus;
   passwordResetToken?: string;
   passwordResetExpires?: Date;
   lastLoginAt?: Date;
@@ -45,18 +45,7 @@ const UserSchema = new Schema<IUser>(
     role: {
       type: String,
       required: true,
-      enum: [
-        "owner",
-        "admin",
-        "fleet_manager",
-        "workshop_manager",
-        "technician",
-        "driver",
-        "dispatcher",
-        "compliance",
-        "finance",
-        "viewer",
-      ],
+      enum: [...USER_ROLES],
       default: "fleet_manager",
       index: true,
     },
@@ -71,7 +60,7 @@ const UserSchema = new Schema<IUser>(
     },
     status: {
       type: String,
-      enum: ["active", "invited", "suspended"],
+      enum: [...USER_STATUSES],
       default: "active",
       index: true,
     },
