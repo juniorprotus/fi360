@@ -5,6 +5,7 @@ import { isDbConnected } from "../../config/db";
 const inMemoryDrivers: IDriver[] = [
   {
     _id: "drv_mock_1",
+    organizationId: "000000000000000000000001",
     fullName: "Samuel Kiprop",
     licenseNumber: "DL-908122-A",
     licenseClass: "Class A Heavy Goods",
@@ -17,6 +18,7 @@ const inMemoryDrivers: IDriver[] = [
   },
   {
     _id: "drv_mock_2",
+    organizationId: "000000000000000000000001",
     fullName: "Amina Noor",
     licenseNumber: "DL-455201-B",
     licenseClass: "Class B Articulated",
@@ -46,7 +48,7 @@ export class DriverService {
     return inMemoryDrivers.find((d) => String(d._id) === id) || null;
   }
 
-  public static async create(input: DriverCreateInput): Promise<IDriver> {
+  public static async create(input: DriverCreateInput & { organizationId?: string }): Promise<IDriver> {
     if (isDbConnected()) {
       const doc = new Driver({
         ...input,
@@ -56,6 +58,7 @@ export class DriverService {
     }
     const newDoc: IDriver = {
       _id: `drv_mem_${Date.now()}`,
+      organizationId: input.organizationId ?? "000000000000000000000001",
       fullName: input.fullName,
       licenseNumber: input.licenseNumber,
       licenseClass: input.licenseClass,
@@ -82,6 +85,7 @@ export class DriverService {
     const updated: IDriver = {
       ...existing,
       ...input,
+      organizationId: existing.organizationId ?? "000000000000000000000001",
       licenseExpiry: input.licenseExpiry ? new Date(input.licenseExpiry) : existing.licenseExpiry,
       updatedAt: new Date(),
     };

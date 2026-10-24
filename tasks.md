@@ -99,3 +99,11 @@
   - Executed `npm run test:auth` — 10/10 tests passed (0 failures).
   - Executed `npm run lint` in backend — TypeScript compilation passed with 0 errors.
   - Executed `next build` in frontend — compiled all 29 routes statically with 0 errors.
+
+## 2026-10-24 Security Hardening Follow-up
+- [x] Reconciled the codebase against the forensic audit and verified the current auth stack before changing behavior.
+- [x] Hardened production env validation to fail closed when `MONGODB_URI` or insecure JWT secrets are missing in production.
+- [x] Prevented the `/api/users` listing route from exposing global user data when an authenticated user lacks an organization membership.
+- [x] Removed browser-stored bearer-token reliance from the frontend auth flow, relying on verified server-side cookie sessions and `GET /api/auth/me` rehydration instead.
+- [x] Cleaned client-side logout/session clearing to remove stale bearer tokens from legacy storage and leave only secure cookie-driven auth state.
+- [x] Validated with backend TypeScript compilation and the FI360 auth regression suite (`10/10 tests passed`).

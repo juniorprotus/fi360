@@ -1,6 +1,7 @@
 import mongoose, { Document, Schema } from "mongoose";
 
 export interface IFuelLog extends Document {
+  organizationId?: string;
   receiptNumber: string;
   vehiclePlate: string;
   litres: number;
@@ -14,6 +15,11 @@ export interface IFuelLog extends Document {
 
 const FuelLogSchema = new Schema<IFuelLog>(
   {
+    organizationId: {
+      type: Schema.Types.ObjectId,
+      ref: "Organization",
+      index: true,
+    },
     receiptNumber: { type: String, required: true, trim: true },
     vehiclePlate: { type: String, required: true, uppercase: true, trim: true },
     litres: { type: Number, required: true, min: 0 },

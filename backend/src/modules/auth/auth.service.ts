@@ -126,6 +126,7 @@ export class AuthService {
       throw new Error("An account with this email address already exists.");
     }
 
+    const fallbackOrganizationId = "000000000000000000000001";
     let organizationId: string | undefined;
 
     if (isDbConnected()) {
@@ -144,6 +145,8 @@ export class AuthService {
         enabledModules: ["vehicles", "drivers", "maintenance", "telematics", "fuel", "ai"],
       });
       organizationId = org._id.toString();
+    } else {
+      organizationId = fallbackOrganizationId;
     }
 
     let user: IUser;
@@ -170,6 +173,7 @@ export class AuthService {
         email: normalizedEmail,
         name: data.name.trim(),
         role: "owner" as UserRole,
+        organizationId: fallbackOrganizationId,
         organizationName: data.organizationName.trim(),
         status: "active",
       });

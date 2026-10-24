@@ -1,12 +1,16 @@
 import { Router, Request, Response } from "express";
 import { Inspection } from "./inspection.model";
 import { isDbConnected } from "../../config/db";
+import { Vehicle } from "../vehicle/vehicle.model";
 
 const router = Router();
+
+const getOrganizationId = (req: Request): string | undefined => req.user?.organizationId?.toString();
 
 let inMemoryInspections = [
   {
     _id: "insp_1",
+    organizationId: "000000000000000000000001",
     reportNumber: "EDVIR-9041",
     vehiclePlate: "KBZ-482L",
     inspectorName: "John Maina (Driver)",
@@ -19,6 +23,7 @@ let inMemoryInspections = [
   },
   {
     _id: "insp_2",
+    organizationId: "000000000000000000000001",
     reportNumber: "EDVIR-9042",
     vehiclePlate: "KDD-109X",
     inspectorName: "Peter Ochieng (Mechanic)",
@@ -31,6 +36,7 @@ let inMemoryInspections = [
   },
   {
     _id: "insp_3",
+    organizationId: "000000000000000000000001",
     reportNumber: "EDVIR-9043",
     vehiclePlate: "KDA-553M",
     inspectorName: "Samuel Karanja (Safety Officer)",
@@ -43,22 +49,24 @@ let inMemoryInspections = [
   },
 ];
 
-// GET /api/inspections - List inspections
-router.get("/", async (_req: Request, res: Response): Promise<void> => {
+// GET /api/inspections - List inspections in caller's organization
+router.get("/", async (req: Request, res: Response): Promise<void> => {
+  const organizationId = getOrganizationId(req);
+  if (!organizationId) {
+    res.status(403).json({ success: false, message: "Organization membership required to view inspections." });
+    return;
+  }
+
   try {
     if (isDbConnected()) {
-      const docs = await Inspection.find().sort({ createdAt: -1 }).lean();
-      if (docs.length === 0) {
-        const inserted = await Inspection.insertMany(
-          inMemoryInspections.map(({ _id, ...i }) => i)
-        );
-        res.json({ success: true, count: inserted.length, data: inserted });
-        return;
-      }
+      const docs = await Inspection.find({ organizationId }).sort({ createdAt: -1 }).lean();
       res.json({ success: true, count: docs.length, data: docs });
       return;
     }
-    res.json({ success: true, count: inMemoryInspections.length, data: inMemoryInspections });
+    const records = inMemoryInspections.filter(
+      (item) => String(item.organizationId ?? "000000000000000000000001") === organizationId
+    );
+    res.json({ success: true, count: records.length, data: records });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -68,8 +76,14 @@ router.get("/", async (_req: Request, res: Response): Promise<void> => {
   }
 });
 
-// POST /api/inspections - Create inspection
+// POST /api/inspections - Create inspection scoped to caller's organization
 router.post("/", async (req: Request, res: Response): Promise<void> => {
+  const organizationId = getOrganizationId(req);
+  if (!organizationId) {
+    res.status(403).json({ success: false, message: "Organization membership required to record inspections." });
+    return;
+  }
+
   const { reportNumber, vehiclePlate, inspectorName, type, outcome, defectsSummary, date } = req.body;
 
   if (!vehiclePlate || !inspectorName) {
@@ -80,14 +94,22 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
+  const normalizedPlate = String(vehiclePlate).toUpperCase().trim();
+  const vehicle = await Vehicle.findOne({ plateNumber: normalizedPlate, organizationId }).lean();
+  if (!vehicle) {
+    res.status(400).json({ success: false, message: "Vehicle plate must belong to your organization." });
+    return;
+  }
+
   const payload = {
     reportNumber: reportNumber || `EDVIR-${Math.floor(1000 + Math.random() * 9000)}`,
-    vehiclePlate: String(vehiclePlate).toUpperCase().trim(),
+    vehiclePlate: normalizedPlate,
     inspectorName: String(inspectorName).trim(),
     type: type || "Pre-Trip Walkaround",
     outcome: outcome || "passed",
     defectsSummary: defectsSummary || "Zero critical defects noted.",
     date: date || new Date().toISOString().replace("T", " ").substring(0, 16),
+    organizationId,
   };
 
   try {

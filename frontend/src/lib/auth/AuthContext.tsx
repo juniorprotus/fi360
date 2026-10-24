@@ -58,50 +58,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshSession = useCallback(async () => {
     setIsLoading(true);
     try {
-      const storedToken =
-        typeof window !== "undefined"
-          ? localStorage.getItem("fi360_auth_token")
-          : null;
-
-      if (!storedToken) {
-        setUser(null);
-        setToken(null);
-        setIsLoading(false);
-        return;
-      }
-
       const res = await fetch(`${API_BASE!}/api/auth/me`, {
         method: "GET",
-        headers: {
-          Authorization: `Bearer ${storedToken}`,
-        },
         credentials: "include",
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.user) {
-          const verifiedUser: User = {
-            id: data.user.userId,
-            name: data.user.name,
-            email: data.user.email,
-            role: data.user.role,
-            organizationId: data.user.organizationId,
-            organizationName: data.user.organizationName,
-            plan: data.user.plan || "Professional",
-          };
-          setUser(verifiedUser);
-          setToken(storedToken);
-          localStorage.setItem("fi360_auth_user", JSON.stringify(verifiedUser));
-        } else {
-          throw new Error("Invalid session verification payload");
-        }
-      } else {
-        // Token expired, forged, or user deactivated on server
+      if (!res.ok) {
         localStorage.removeItem("fi360_auth_token");
         localStorage.removeItem("fi360_auth_user");
         setUser(null);
         setToken(null);
+        return;
+      }
+
+      const data = await res.json();
+      if (data.success && data.user) {
+        const verifiedUser: User = {
+          id: data.user.userId,
+          name: data.user.name,
+          email: data.user.email,
+          role: data.user.role,
+          organizationId: data.user.organizationId,
+          organizationName: data.user.organizationName,
+          plan: data.user.plan || "Professional",
+        };
+        setUser(verifiedUser);
+        setToken(null);
+        localStorage.setItem("fi360_auth_user", JSON.stringify(verifiedUser));
+      } else {
+        throw new Error("Invalid session verification payload");
       }
     } catch {
       localStorage.removeItem("fi360_auth_token");
@@ -154,9 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
 
       setUser(authenticatedUser);
-      setToken(data.token);
-
-      localStorage.setItem("fi360_auth_token", data.token);
+      setToken(null);
       localStorage.setItem("fi360_auth_user", JSON.stringify(authenticatedUser));
 
       const redirectUrl =
@@ -206,9 +189,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
 
       setUser(newUser);
-      setToken(resData.token);
-
-      localStorage.setItem("fi360_auth_token", resData.token);
+      setToken(null);
       localStorage.setItem("fi360_auth_user", JSON.stringify(newUser));
 
       return {

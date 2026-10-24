@@ -15,10 +15,10 @@ const API_BASE: string = (() => {
 function authFetch(url: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const isBackendCall = typeof url === "string" && url.startsWith(API_BASE!);
   if (isBackendCall && typeof window !== "undefined") {
-    const token = localStorage.getItem("fi360_auth_token");
     const headers = new Headers(init?.headers || {});
-    if (token && !headers.has("Authorization")) {
-      headers.set("Authorization", `Bearer ${token}`);
+    const legacyToken = localStorage.getItem("fi360_auth_token");
+    if (legacyToken) {
+      localStorage.removeItem("fi360_auth_token");
     }
     return fetch(url, {
       ...init,

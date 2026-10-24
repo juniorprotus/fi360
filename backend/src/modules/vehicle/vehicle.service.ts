@@ -13,6 +13,7 @@ const inMemoryVehicles: IVehicle[] = [
     year: 2023,
     type: "truck",
     status: "active",
+    organizationId: "000000000000000000000001",
     telematicsData: {
       odometerKm: 48250,
       fuelLevelPercent: 78,
@@ -34,6 +35,7 @@ const inMemoryVehicles: IVehicle[] = [
     year: 2022,
     type: "truck",
     status: "maintenance",
+    organizationId: "000000000000000000000001",
     telematicsData: {
       odometerKm: 98120,
       fuelLevelPercent: 32,
@@ -55,6 +57,7 @@ const inMemoryVehicles: IVehicle[] = [
     year: 2024,
     type: "pickup",
     status: "critical_failure",
+    organizationId: "000000000000000000000001",
     telematicsData: {
       odometerKm: 28400,
       fuelLevelPercent: 12,
@@ -109,7 +112,7 @@ export class VehicleService {
       year: input.year,
       type: input.type,
       status: input.status ?? "active",
-      organizationId: input.organizationId,
+      organizationId: input.organizationId ?? "000000000000000000000001",
       telematicsData: {
         odometerKm: input.telematicsData?.odometerKm ?? 0,
         fuelLevelPercent: input.telematicsData?.fuelLevelPercent ?? 100,

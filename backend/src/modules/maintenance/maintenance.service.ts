@@ -5,6 +5,7 @@ import { isDbConnected } from "../../config/db";
 const inMemoryMaintenance: IMaintenanceLog[] = [
   {
     _id: "maint_mock_1",
+    organizationId: "000000000000000000000001",
     vehicleId: "veh_mock_2",
     type: "brake_system",
     status: "in_progress",
@@ -19,6 +20,7 @@ const inMemoryMaintenance: IMaintenanceLog[] = [
   },
   {
     _id: "maint_mock_2",
+    organizationId: "000000000000000000000001",
     vehicleId: "veh_mock_3",
     type: "emergency_repair",
     status: "scheduled",
@@ -50,7 +52,7 @@ export class MaintenanceService {
     return inMemoryMaintenance.filter((m) => String(m.vehicleId) === vehicleId);
   }
 
-  public static async create(input: MaintenanceCreateInput): Promise<IMaintenanceLog> {
+  public static async create(input: MaintenanceCreateInput & { organizationId?: string }): Promise<IMaintenanceLog> {
     if (isDbConnected()) {
       const doc = new MaintenanceLog({
         ...input,
@@ -61,6 +63,7 @@ export class MaintenanceService {
     }
     const newDoc: IMaintenanceLog = {
       _id: `maint_mem_${Date.now()}`,
+      organizationId: input.organizationId ?? "000000000000000000000001",
       vehicleId: input.vehicleId,
       type: input.type,
       status: input.status ?? "scheduled",
@@ -90,6 +93,7 @@ export class MaintenanceService {
     const updated: IMaintenanceLog = {
       ...existing,
       ...input,
+      organizationId: existing.organizationId ?? "000000000000000000000001",
       scheduledDate: input.scheduledDate ? new Date(input.scheduledDate) : existing.scheduledDate,
       completedDate: input.completedDate ? new Date(input.completedDate) : existing.completedDate,
       updatedAt: new Date(),

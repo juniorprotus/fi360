@@ -1,6 +1,7 @@
 import mongoose, { Document, Schema } from "mongoose";
 
 export interface IInspection extends Document {
+  organizationId?: string;
   reportNumber: string;
   vehiclePlate: string;
   inspectorName: string;
@@ -14,6 +15,11 @@ export interface IInspection extends Document {
 
 const InspectionSchema = new Schema<IInspection>(
   {
+    organizationId: {
+      type: Schema.Types.ObjectId,
+      ref: "Organization",
+      index: true,
+    },
     reportNumber: { type: String, required: true, trim: true },
     vehiclePlate: { type: String, required: true, uppercase: true, trim: true },
     inspectorName: { type: String, required: true, trim: true },

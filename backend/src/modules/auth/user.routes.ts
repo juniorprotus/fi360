@@ -45,12 +45,15 @@ router.get(
         return;
       }
 
-      // Filter by caller's organization for multi-tenant isolation
-      const query = req.user?.organizationId
-        ? { organizationId: req.user.organizationId }
-        : {};
+      if (!req.user?.organizationId) {
+        res.status(403).json({
+          success: false,
+          message: "Organization membership required to list team members.",
+        });
+        return;
+      }
 
-      const users = await User.find(query)
+      const users = await User.find({ organizationId: req.user.organizationId })
         .select("-passwordResetToken -passwordResetExpires")
         .sort({ createdAt: -1 });
 

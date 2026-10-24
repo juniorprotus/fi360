@@ -1,13 +1,17 @@
 import { Router, Request, Response } from "express";
 import { FuelLog } from "./fuel.model";
 import { isDbConnected } from "../../config/db";
+import { Vehicle } from "../vehicle/vehicle.model";
 
 const router = Router();
+
+const getOrganizationId = (req: Request): string | undefined => req.user?.organizationId?.toString();
 
 // In-memory fallback
 let inMemoryFuel = [
   {
     _id: "f_1",
+    organizationId: "000000000000000000000001",
     receiptNumber: "TX-FUEL-8819",
     vehiclePlate: "KBZ-482L",
     litres: 280,
@@ -20,6 +24,7 @@ let inMemoryFuel = [
   },
   {
     _id: "f_2",
+    organizationId: "000000000000000000000001",
     receiptNumber: "TX-FUEL-8820",
     vehiclePlate: "KCE-771P",
     litres: 340,
@@ -32,20 +37,22 @@ let inMemoryFuel = [
   },
 ];
 
-// GET /api/fuel - List fuel logs
-router.get("/", async (_req: Request, res: Response): Promise<void> => {
+// GET /api/fuel - List fuel logs in caller's organization
+router.get("/", async (req: Request, res: Response): Promise<void> => {
+  const organizationId = getOrganizationId(req);
+  if (!organizationId) {
+    res.status(403).json({ success: false, message: "Organization membership required to view fuel logs." });
+    return;
+  }
+
   try {
     if (isDbConnected()) {
-      const docs = await FuelLog.find().sort({ createdAt: -1 }).lean();
-      if (docs.length === 0) {
-        const inserted = await FuelLog.insertMany(inMemoryFuel.map(({ _id, ...f }) => f));
-        res.json({ success: true, count: inserted.length, data: inserted });
-        return;
-      }
+      const docs = await FuelLog.find({ organizationId }).sort({ createdAt: -1 }).lean();
       res.json({ success: true, count: docs.length, data: docs });
       return;
     }
-    res.json({ success: true, count: inMemoryFuel.length, data: inMemoryFuel });
+    const records = inMemoryFuel.filter((f) => String(f.organizationId ?? "000000000000000000000001") === organizationId);
+    res.json({ success: true, count: records.length, data: records });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -55,8 +62,14 @@ router.get("/", async (_req: Request, res: Response): Promise<void> => {
   }
 });
 
-// POST /api/fuel - Log a fuel transaction
+// POST /api/fuel - Log a fuel transaction for caller's organization
 router.post("/", async (req: Request, res: Response): Promise<void> => {
+  const organizationId = getOrganizationId(req);
+  if (!organizationId) {
+    res.status(403).json({ success: false, message: "Organization membership required to create fuel logs." });
+    return;
+  }
+
   const { receiptNumber, vehiclePlate, litres, costTotal, odometerKm, station, date } = req.body;
 
   if (!receiptNumber || !vehiclePlate || !litres || !costTotal) {
@@ -67,14 +80,22 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
+  const normalizedPlate = String(vehiclePlate).toUpperCase().trim();
+  const vehicle = await Vehicle.findOne({ plateNumber: normalizedPlate, organizationId }).lean();
+  if (!vehicle) {
+    res.status(400).json({ success: false, message: "Vehicle plate must belong to your organization." });
+    return;
+  }
+
   const payload = {
     receiptNumber: String(receiptNumber).trim(),
-    vehiclePlate: String(vehiclePlate).toUpperCase().trim(),
+    vehiclePlate: normalizedPlate,
     litres: Number(litres),
     costTotal: Number(costTotal),
     odometerKm: Number(odometerKm) || 0,
     station: String(station || "Standard Depot Dispenser").trim(),
     date: date || new Date().toISOString().replace("T", " ").substring(0, 16),
+    organizationId,
   };
 
   try {
@@ -101,13 +122,19 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-// DELETE /api/fuel/:id - Delete fuel log
+// DELETE /api/fuel/:id - Delete fuel log from caller's organization only
 router.delete("/:id", async (req: Request, res: Response): Promise<void> => {
+  const organizationId = getOrganizationId(req);
+  if (!organizationId) {
+    res.status(403).json({ success: false, message: "Organization membership required to delete fuel logs." });
+    return;
+  }
+
   const { id } = req.params;
 
   try {
     if (isDbConnected()) {
-      const deleted = await FuelLog.findByIdAndDelete(id);
+      const deleted = await FuelLog.findOneAndDelete({ _id: id, organizationId });
       if (!deleted) {
         res.status(404).json({ success: false, message: "Fuel log not found" });
         return;
@@ -116,7 +143,9 @@ router.delete("/:id", async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const index = inMemoryFuel.findIndex((f) => String(f._id) === id);
+    const index = inMemoryFuel.findIndex(
+      (f) => String(f._id) === id && String(f.organizationId ?? "000000000000000000000001") === organizationId
+    );
     if (index === -1) {
       res.status(404).json({ success: false, message: "Fuel log not found" });
       return;

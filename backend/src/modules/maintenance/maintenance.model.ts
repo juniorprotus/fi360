@@ -2,6 +2,7 @@ import mongoose, { Schema, Types } from "mongoose";
 
 export interface IMaintenanceLog {
   _id?: Types.ObjectId | string;
+  organizationId?: Types.ObjectId | string;
   vehicleId: Types.ObjectId | string;
   type: "inspection" | "oil_service" | "brake_system" | "tyre_rotation" | "engine_overhaul" | "electrical" | "emergency_repair";
   status: "scheduled" | "in_progress" | "completed" | "cancelled";
@@ -19,6 +20,11 @@ export interface IMaintenanceLog {
 
 const MaintenanceLogSchema = new Schema<IMaintenanceLog>(
   {
+    organizationId: {
+      type: Schema.Types.ObjectId,
+      ref: "Organization",
+      index: true,
+    },
     vehicleId: { type: Schema.Types.ObjectId, ref: "Vehicle", required: true, index: true },
     type: {
       type: String,

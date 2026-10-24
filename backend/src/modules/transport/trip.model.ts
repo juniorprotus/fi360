@@ -1,6 +1,7 @@
 import mongoose, { Document, Schema } from "mongoose";
 
 export interface ITrip extends Document {
+  organizationId?: string;
   tripNumber: string;
   vehiclePlate: string;
   assignedDriver: string;
@@ -15,6 +16,11 @@ export interface ITrip extends Document {
 
 const TripSchema = new Schema<ITrip>(
   {
+    organizationId: {
+      type: Schema.Types.ObjectId,
+      ref: "Organization",
+      index: true,
+    },
     tripNumber: { type: String, required: true, trim: true },
     vehiclePlate: { type: String, required: true, uppercase: true, trim: true },
     assignedDriver: { type: String, required: true, trim: true },

@@ -5,7 +5,10 @@ let isConnected = false;
 export async function connectDB(): Promise<void> {
   const uri = process.env.MONGODB_URI;
 
-  if (!uri) {
+  if (!uri || uri.trim() === "") {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("Production startup refused: MONGODB_URI is required. Database fallback mode is disabled in production.");
+    }
     console.warn(
       "⚠️  MONGODB_URI is not defined. Database features will use in-memory fallback.\n" +
         "   → To enable persistence: set MONGODB_URI in your .env file or Render environment variables."

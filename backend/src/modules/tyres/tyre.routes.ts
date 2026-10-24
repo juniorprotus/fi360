@@ -1,13 +1,17 @@
 import { Router, Request, Response } from "express";
 import { Tyre } from "./tyre.model";
 import { isDbConnected } from "../../config/db";
+import { Vehicle } from "../vehicle/vehicle.model";
 
 const router = Router();
+
+const getOrganizationId = (req: Request): string | undefined => req.user?.organizationId?.toString();
 
 // In-memory fallback
 let inMemoryTyres = [
   {
     _id: "tyre_1",
+    organizationId: "000000000000000000000001",
     serialNumber: "TY-MIC-9921",
     vehiclePlate: "KBZ-482L",
     position: "Steer Axle - Front Left",
@@ -20,6 +24,7 @@ let inMemoryTyres = [
   },
   {
     _id: "tyre_2",
+    organizationId: "000000000000000000000001",
     serialNumber: "TY-MIC-9922",
     vehiclePlate: "KBZ-482L",
     position: "Steer Axle - Front Right",
@@ -32,6 +37,7 @@ let inMemoryTyres = [
   },
   {
     _id: "tyre_3",
+    organizationId: "000000000000000000000001",
     serialNumber: "TY-BRI-8401",
     vehiclePlate: "KDD-109X",
     position: "Drive Axle - Rear Outer Right",
@@ -44,21 +50,22 @@ let inMemoryTyres = [
   },
 ];
 
-// GET /api/tyres - List all tyres
-router.get("/", async (_req: Request, res: Response): Promise<void> => {
+// GET /api/tyres - List tyres in caller's organization
+router.get("/", async (req: Request, res: Response): Promise<void> => {
+  const organizationId = getOrganizationId(req);
+  if (!organizationId) {
+    res.status(403).json({ success: false, message: "Organization membership required to view tyres." });
+    return;
+  }
+
   try {
     if (isDbConnected()) {
-      const docs = await Tyre.find().sort({ createdAt: -1 }).lean();
-      if (docs.length === 0) {
-        // Seed default tyres if empty
-        const inserted = await Tyre.insertMany(inMemoryTyres.map(({ _id, ...t }) => t));
-        res.json({ success: true, count: inserted.length, data: inserted });
-        return;
-      }
+      const docs = await Tyre.find({ organizationId }).sort({ createdAt: -1 }).lean();
       res.json({ success: true, count: docs.length, data: docs });
       return;
     }
-    res.json({ success: true, count: inMemoryTyres.length, data: inMemoryTyres });
+    const records = inMemoryTyres.filter((t) => String(t.organizationId ?? "000000000000000000000001") === organizationId);
+    res.json({ success: true, count: records.length, data: records });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -68,8 +75,14 @@ router.get("/", async (_req: Request, res: Response): Promise<void> => {
   }
 });
 
-// POST /api/tyres - Register a new tyre
+// POST /api/tyres - Register a new tyre for the caller's organization
 router.post("/", async (req: Request, res: Response): Promise<void> => {
+  const organizationId = getOrganizationId(req);
+  if (!organizationId) {
+    res.status(403).json({ success: false, message: "Organization membership required to create tyres." });
+    return;
+  }
+
   const { serialNumber, vehiclePlate, position, brand, treadDepthMm, pressurePsi, status } = req.body;
 
   if (!serialNumber || !vehiclePlate || !position || !brand) {
@@ -80,14 +93,22 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
+  const normalizedPlate = String(vehiclePlate).toUpperCase().trim();
+  const vehicle = await Vehicle.findOne({ plateNumber: normalizedPlate, organizationId }).lean();
+  if (!vehicle) {
+    res.status(400).json({ success: false, message: "Vehicle plate must belong to your organization." });
+    return;
+  }
+
   const payload = {
     serialNumber: String(serialNumber).trim(),
-    vehiclePlate: String(vehiclePlate).toUpperCase().trim(),
+    vehiclePlate: normalizedPlate,
     position: String(position).trim(),
     brand: String(brand).trim(),
     treadDepthMm: Number(treadDepthMm) || 12.0,
     pressurePsi: Number(pressurePsi) || 110,
     status: status || "good",
+    organizationId,
   };
 
   try {
@@ -114,14 +135,29 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-// PATCH /api/tyres/:id - Update tyre
+// PATCH /api/tyres/:id - Update tyre within organization
 router.patch("/:id", async (req: Request, res: Response): Promise<void> => {
+  const organizationId = getOrganizationId(req);
+  if (!organizationId) {
+    res.status(403).json({ success: false, message: "Organization membership required to update tyres." });
+    return;
+  }
+
   const { id } = req.params;
   const updates = req.body;
 
+  if (updates.vehiclePlate) {
+    const plate = String(updates.vehiclePlate).toUpperCase().trim();
+    const vehicle = await Vehicle.findOne({ plateNumber: plate, organizationId }).lean();
+    if (!vehicle) {
+      res.status(400).json({ success: false, message: "Vehicle plate must belong to your organization." });
+      return;
+    }
+  }
+
   try {
     if (isDbConnected()) {
-      const updated = await Tyre.findByIdAndUpdate(id, { $set: updates }, { new: true }).lean();
+      const updated = await Tyre.findOneAndUpdate({ _id: id, organizationId }, { $set: updates }, { new: true }).lean();
       if (!updated) {
         res.status(404).json({ success: false, message: "Tyre not found" });
         return;
@@ -130,7 +166,9 @@ router.patch("/:id", async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const index = inMemoryTyres.findIndex((t) => String(t._id) === id);
+    const index = inMemoryTyres.findIndex(
+      (t) => String(t._id) === id && String(t.organizationId ?? "000000000000000000000001") === organizationId
+    );
     if (index === -1) {
       res.status(404).json({ success: false, message: "Tyre not found" });
       return;
@@ -147,13 +185,19 @@ router.patch("/:id", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-// DELETE /api/tyres/:id - Remove tyre
+// DELETE /api/tyres/:id - Remove tyre from the caller's organization
 router.delete("/:id", async (req: Request, res: Response): Promise<void> => {
+  const organizationId = getOrganizationId(req);
+  if (!organizationId) {
+    res.status(403).json({ success: false, message: "Organization membership required to delete tyres." });
+    return;
+  }
+
   const { id } = req.params;
 
   try {
     if (isDbConnected()) {
-      const deleted = await Tyre.findByIdAndDelete(id);
+      const deleted = await Tyre.findOneAndDelete({ _id: id, organizationId });
       if (!deleted) {
         res.status(404).json({ success: false, message: "Tyre not found" });
         return;
@@ -162,7 +206,9 @@ router.delete("/:id", async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const index = inMemoryTyres.findIndex((t) => String(t._id) === id);
+    const index = inMemoryTyres.findIndex(
+      (t) => String(t._id) === id && String(t.organizationId ?? "000000000000000000000001") === organizationId
+    );
     if (index === -1) {
       res.status(404).json({ success: false, message: "Tyre not found" });
       return;

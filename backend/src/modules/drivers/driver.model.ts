@@ -2,6 +2,7 @@ import mongoose, { Schema, Types } from "mongoose";
 
 export interface IDriver {
   _id?: Types.ObjectId | string;
+  organizationId?: Types.ObjectId | string;
   fullName: string;
   licenseNumber: string;
   licenseClass: string;
@@ -16,6 +17,11 @@ export interface IDriver {
 
 const DriverSchema = new Schema<IDriver>(
   {
+    organizationId: {
+      type: Schema.Types.ObjectId,
+      ref: "Organization",
+      index: true,
+    },
     fullName: { type: String, required: true, trim: true },
     licenseNumber: { type: String, required: true, unique: true, uppercase: true, trim: true },
     licenseClass: { type: String, default: "Heavy Commercial" },
