@@ -161,8 +161,15 @@
 
 ## 2026-10-25 Render TypeScript Build Dependency Fix
 - [x] Diagnosed Render compile errors: `npm ci` ran in production mode and omitted the development-only `@types/jsonwebtoken` and `@types/cookie-parser` needed by `tsc`.
-- [x] Updated Render and deployment-guide build commands to install dev dependencies for compilation, then prune them from the runtime installation.
+- [x] Initially updated the Render/deployment-guide build commands to install dev dependencies for compilation and prune afterward; a later deployment log showed Render used a dashboard command override instead.
 - [x] Reproduced the exact production-mode Render build sequence locally: `npm ci --include=dev`, `npm run build`, and `npm prune --omit=dev` all succeeded; verified Express and Zod remain installed and the declaration packages are pruned.
+
+## 2026-10-25 Render Dashboard Build Override Compatibility
+- [x] Investigated the subsequent Render logs: Render used the dashboard override `npm ci && npm run build`, despite the repository blueprint specifying `--include=dev`.
+- [x] Promoted only `@types/jsonwebtoken` and `@types/cookie-parser` to regular dependencies so production-only `npm ci` includes the declarations required by the compiler, matching the existing placement of other backend `@types` packages.
+- [x] Restored the blueprint and deployment documentation build command to match Render's actual command; this avoids relying on a dashboard setting being synchronized.
+- [x] Re-ran the exact logged production-only sequence `NODE_ENV=production npm ci && npm run build`; compilation succeeded with both declaration packages installed as production dependencies.
+- [x] Full `npm audit` reported zero vulnerabilities. `npm run lint` under the pruned production-only install reports missing `mongodb-memory-server` types in test-runner scripts; production build excludes those scripts and succeeds.
 - [x] Resolved the body-parser DoS advisory by updating the compatible Express 4 transitive dependency from 1.20.8 to 1.20.9.
 - [x] Upgraded Zod from 3.25.76 to patched 4.6.7; the backend TypeScript check passes without schema API migration errors.
 - [x] Bounded organization module selections to the six supported modules and added schema behavior tests for field requirements, boundaries, defaults, and error formatting.

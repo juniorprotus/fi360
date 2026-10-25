@@ -12,12 +12,12 @@
 | Setting | Value |
 |---|---|
 | **Root Directory** | `backend` |
-| **Build Command** | `npm ci --include=dev && npm run build && npm prune --omit=dev` |
+| **Build Command** | `npm ci && npm run build` |
 | **Start Command** | `npm start` |
 | **Environment** | `Node` |
 | **Instance Type** | Free |
 
-The build installs development-only TypeScript declarations for compilation, compiles TypeScript to CommonJS in `backend/dist`, then prunes development dependencies from the runtime installation. `npm start` runs the generated `dist/server.js` entry point.
+The build compiles TypeScript to CommonJS in `backend/dist`; all compiler-required type declarations are regular dependencies so the build also works when Render installs with `NODE_ENV=production`. `npm start` runs the generated `dist/server.js` entry point.
 
 ### C. Set Environment Variables
 In Render → Service → **Environment** tab, add:
