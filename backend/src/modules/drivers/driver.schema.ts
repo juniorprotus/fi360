@@ -11,9 +11,9 @@ export const DriverCreateSchema = z.object({
   status: DriverStatusEnum.default("active"),
   performanceScore: z.number().min(0).max(100).default(90),
   assignedVehicleId: z.string().optional(),
-});
+}).strict();
 
-export const DriverUpdateSchema = DriverCreateSchema.partial();
+export const DriverUpdateSchema = DriverCreateSchema.partial().strict();
 
 export type DriverCreateInput = z.infer<typeof DriverCreateSchema>;
 export type DriverUpdateInput = z.infer<typeof DriverUpdateSchema>;

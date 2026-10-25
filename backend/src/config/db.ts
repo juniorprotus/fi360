@@ -7,11 +7,10 @@ export async function connectDB(): Promise<void> {
 
   if (!uri || uri.trim() === "") {
     if (process.env.NODE_ENV === "production") {
-      throw new Error("Production startup refused: MONGODB_URI is required. Database fallback mode is disabled in production.");
+      throw new Error("Production startup refused: MONGODB_URI is required.");
     }
     console.warn(
-      "⚠️  MONGODB_URI is not defined. Database features will use in-memory fallback.\n" +
-        "   → To enable persistence: set MONGODB_URI in your .env file or Render environment variables."
+      "⚠️  MONGODB_URI is not defined. Database-backed API requests will return service unavailable."
     );
     return;
   }
@@ -27,8 +26,8 @@ export async function connectDB(): Promise<void> {
       console.log("✅ MongoDB connected successfully.");
     });
 
-    mongoose.connection.on("error", (err) => {
-      console.error("❌ MongoDB connection error:", err.message);
+    mongoose.connection.on("error", () => {
+      console.error("❌ MongoDB connection error; database-backed service is unavailable.");
       isConnected = false;
     });
 
@@ -55,13 +54,9 @@ export async function connectDB(): Promise<void> {
       retryWrites: true,
       w: "majority",
     });
-  } catch (error) {
-    console.error(
-      "❌ Initial MongoDB connection failed:",
-      error instanceof Error ? error.message : error
-    );
-    // Non-fatal: server starts anyway on offline fallback mode.
-    // The /api/health endpoint continues responding for Render's uptime ping.
+  } catch {
+    console.error("❌ Initial MongoDB connection failed; database-backed service startup aborted.");
+    throw new Error("Initial MongoDB connection failed; database-backed service startup aborted.");
   }
 }
 

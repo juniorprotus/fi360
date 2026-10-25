@@ -1,138 +1,61 @@
 import { Router, Request, Response } from "express";
+import { z } from "zod";
 import { Inspection } from "./inspection.model";
-import { isDbConnected } from "../../config/db";
 import { Vehicle } from "../vehicle/vehicle.model";
+import { authorize } from "../auth/authorization.middleware";
+import { requireDatabase, requireOrganization } from "../auth/tenant.middleware";
 
 const router = Router();
+router.use(requireDatabase, requireOrganization);
 
-const getOrganizationId = (req: Request): string | undefined => req.user?.organizationId?.toString();
+const InspectionCreateSchema = z.object({
+  reportNumber: z.string().trim().min(1).max(100).optional(),
+  vehiclePlate: z.string().trim().min(2).max(20),
+  inspectorName: z.string().trim().min(1).max(100).optional(),
+  type: z.string().trim().min(1).max(100).default("Pre-Trip Walkaround"),
+  outcome: z.enum(["passed", "failed", "requires_attention"]).default("passed"),
+  defectsSummary: z.string().trim().max(1000).default("Zero critical defects noted."),
+  date: z.string().min(1).max(40).optional(),
+}).strict();
 
-let inMemoryInspections = [
-  {
-    _id: "insp_1",
-    organizationId: "000000000000000000000001",
-    reportNumber: "EDVIR-9041",
-    vehiclePlate: "KBZ-482L",
-    inspectorName: "John Maina (Driver)",
-    type: "Pre-Trip Walkaround",
-    outcome: "passed",
-    defectsSummary: "Zero critical defects noted. Tyres & pneumatics verified.",
-    date: "2026-10-06 06:30",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    _id: "insp_2",
-    organizationId: "000000000000000000000001",
-    reportNumber: "EDVIR-9042",
-    vehiclePlate: "KDD-109X",
-    inspectorName: "Peter Ochieng (Mechanic)",
-    type: "Workshop Audit",
-    outcome: "requires_attention",
-    defectsSummary: "Brake pad wear nearing 3mm minimum safety threshold.",
-    date: "2026-10-06 09:15",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    _id: "insp_3",
-    organizationId: "000000000000000000000001",
-    reportNumber: "EDVIR-9043",
-    vehiclePlate: "KDA-553M",
-    inspectorName: "Samuel Karanja (Safety Officer)",
-    type: "Annual MOT Compliance",
-    outcome: "failed",
-    defectsSummary: "Alternator low output; battery drained below critical 11.2V.",
-    date: "2026-10-05 16:45",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-];
+const organizationId = (req: Request): string => req.user!.organizationId!;
 
-// GET /api/inspections - List inspections in caller's organization
-router.get("/", async (req: Request, res: Response): Promise<void> => {
-  const organizationId = getOrganizationId(req);
-  if (!organizationId) {
-    res.status(403).json({ success: false, message: "Organization membership required to view inspections." });
-    return;
-  }
-
+router.get("/", authorize("inspections", "read"), async (req: Request, res: Response): Promise<void> => {
   try {
-    if (isDbConnected()) {
-      const docs = await Inspection.find({ organizationId }).sort({ createdAt: -1 }).lean();
-      res.json({ success: true, count: docs.length, data: docs });
-      return;
-    }
-    const records = inMemoryInspections.filter(
-      (item) => String(item.organizationId ?? "000000000000000000000001") === organizationId
-    );
+    const records = await Inspection.find({ organizationId: organizationId(req) }).sort({ createdAt: -1 }).lean();
     res.json({ success: true, count: records.length, data: records });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch inspections",
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
+  } catch {
+    res.status(500).json({ success: false, message: "Failed to fetch inspections." });
   }
 });
 
-// POST /api/inspections - Create inspection scoped to caller's organization
-router.post("/", async (req: Request, res: Response): Promise<void> => {
-  const organizationId = getOrganizationId(req);
-  if (!organizationId) {
-    res.status(403).json({ success: false, message: "Organization membership required to record inspections." });
+router.post("/", authorize("inspections", "create"), async (req: Request, res: Response): Promise<void> => {
+  const parsed = InspectionCreateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ success: false, message: "Validation failed", errors: parsed.error.flatten().fieldErrors });
     return;
   }
-
-  const { reportNumber, vehiclePlate, inspectorName, type, outcome, defectsSummary, date } = req.body;
-
-  if (!vehiclePlate || !inspectorName) {
-    res.status(400).json({
-      success: false,
-      message: "Please provide vehiclePlate and inspectorName",
-    });
-    return;
-  }
-
-  const normalizedPlate = String(vehiclePlate).toUpperCase().trim();
-  const vehicle = await Vehicle.findOne({ plateNumber: normalizedPlate, organizationId }).lean();
-  if (!vehicle) {
-    res.status(400).json({ success: false, message: "Vehicle plate must belong to your organization." });
-    return;
-  }
-
-  const payload = {
-    reportNumber: reportNumber || `EDVIR-${Math.floor(1000 + Math.random() * 9000)}`,
-    vehiclePlate: normalizedPlate,
-    inspectorName: String(inspectorName).trim(),
-    type: type || "Pre-Trip Walkaround",
-    outcome: outcome || "passed",
-    defectsSummary: defectsSummary || "Zero critical defects noted.",
-    date: date || new Date().toISOString().replace("T", " ").substring(0, 16),
-    organizationId,
-  };
-
+  const plate = parsed.data.vehiclePlate.toUpperCase().trim();
   try {
-    if (isDbConnected()) {
-      const created = await Inspection.create(payload);
-      res.status(201).json({ success: true, data: created });
+    const vehicle = await Vehicle.findOne({
+      plateNumber: plate,
+      organizationId: organizationId(req),
+    }).select("_id").lean();
+    if (!vehicle) {
+      res.status(400).json({ success: false, message: "Vehicle plate must belong to your organization." });
       return;
     }
-
-    const created = {
-      _id: `insp_${Date.now()}`,
-      ...payload,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    inMemoryInspections.unshift(created as any);
-    res.status(201).json({ success: true, data: created });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to record inspection",
-      error: error instanceof Error ? error.message : "Unknown error",
+    const created = await Inspection.create({
+      ...parsed.data,
+      reportNumber: parsed.data.reportNumber || `EDVIR-${Math.floor(1000 + Math.random() * 9000)}`,
+      vehiclePlate: plate,
+      inspectorName: req.user!.name,
+      date: parsed.data.date || new Date().toISOString().replace("T", " ").substring(0, 16),
+      organizationId: organizationId(req),
     });
+    res.status(201).json({ success: true, data: created });
+  } catch {
+    res.status(500).json({ success: false, message: "Failed to record inspection." });
   }
 });
 

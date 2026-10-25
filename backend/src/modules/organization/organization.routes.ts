@@ -1,109 +1,98 @@
 import { Router, Request, Response } from "express";
-import { OrganizationService } from "./organization.service";
-import {
-  OrganizationCreateSchema,
-  OrganizationUpdateSchema,
-} from "./organization.schema";
+import mongoose from "mongoose";
+import { Organization } from "./organization.model";
+import { OrganizationUpdateSchema } from "./organization.schema";
+import { authorize } from "../auth/authorization.middleware";
+import { requireDatabase, requireOrganization } from "../auth/tenant.middleware";
 
 const router = Router();
 
-// GET /api/organizations
-router.get("/", async (_req: Request, res: Response): Promise<void> => {
-  try {
-    const orgs = await OrganizationService.findAll();
-    res.json({ success: true, count: orgs.length, data: orgs });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch organizations",
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+router.use(requireDatabase, requireOrganization, authorize("vehicles", "read"));
 
-// GET /api/organizations/:id
-router.get("/:id", async (req: Request, res: Response): Promise<void> => {
+router.get("/", async (req: Request, res: Response): Promise<void> => {
   try {
-    const org = await OrganizationService.findById(req.params.id);
-    if (!org) {
-      res.status(404).json({ success: false, message: "Organization not found" });
+    const organization = await Organization.findById(req.user!.organizationId).lean();
+    if (!organization) {
+      res.status(404).json({ success: false, message: "Organization not found." });
       return;
     }
-    res.json({ success: true, data: org });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to retrieve organization",
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
+    res.json({ success: true, count: 1, data: [organization] });
+  } catch {
+    res.status(500).json({ success: false, message: "Failed to retrieve organization." });
   }
 });
 
-// GET /api/organizations/slug/:slug
+router.get("/:id", async (req: Request, res: Response): Promise<void> => {
+  if (!mongoose.isValidObjectId(req.params.id) || req.params.id !== req.user!.organizationId) {
+    res.status(404).json({ success: false, message: "Organization not found." });
+    return;
+  }
+  try {
+    const organization = await Organization.findById(req.params.id).lean();
+    if (!organization) {
+      res.status(404).json({ success: false, message: "Organization not found." });
+      return;
+    }
+    res.json({ success: true, data: organization });
+  } catch {
+    res.status(500).json({ success: false, message: "Failed to retrieve organization." });
+  }
+});
+
 router.get("/slug/:slug", async (req: Request, res: Response): Promise<void> => {
   try {
-    const org = await OrganizationService.findBySlug(req.params.slug);
-    if (!org) {
-      res.status(404).json({ success: false, message: "Organization not found" });
+    const organization = await Organization.findOne({
+      _id: req.user!.organizationId,
+      slug: req.params.slug,
+    }).lean();
+    if (!organization) {
+      res.status(404).json({ success: false, message: "Organization not found." });
       return;
     }
-    res.json({ success: true, data: org });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to retrieve organization",
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
+    res.json({ success: true, data: organization });
+  } catch {
+    res.status(500).json({ success: false, message: "Failed to retrieve organization." });
   }
 });
 
-// POST /api/organizations
-router.post("/", async (req: Request, res: Response): Promise<void> => {
-  const result = OrganizationCreateSchema.safeParse(req.body);
-  if (!result.success) {
+router.post("/", (_req: Request, res: Response): void => {
+  res.status(403).json({
+    success: false,
+    message: "Organizations can only be created through account registration.",
+  });
+});
+
+router.patch("/:id", authorize("vehicles", "update"), async (req: Request, res: Response): Promise<void> => {
+  if (req.user?.role !== "owner") {
+    res.status(403).json({ success: false, message: "Only the organization owner may update organization settings." });
+    return;
+  }
+  if (!mongoose.isValidObjectId(req.params.id) || req.params.id !== req.user.organizationId) {
+    res.status(404).json({ success: false, message: "Organization not found." });
+    return;
+  }
+  const parsed = OrganizationUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
     res.status(400).json({
       success: false,
       message: "Validation failed",
-      errors: result.error.flatten().fieldErrors,
+      errors: parsed.error.flatten().fieldErrors,
     });
     return;
   }
   try {
-    const created = await OrganizationService.create(result.data);
-    res.status(201).json({ success: true, data: created });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to create organization",
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
-
-// PATCH /api/organizations/:id
-router.patch("/:id", async (req: Request, res: Response): Promise<void> => {
-  const result = OrganizationUpdateSchema.safeParse(req.body);
-  if (!result.success) {
-    res.status(400).json({
-      success: false,
-      message: "Validation failed",
-      errors: result.error.flatten().fieldErrors,
-    });
-    return;
-  }
-  try {
-    const updated = await OrganizationService.update(req.params.id, result.data);
+    const updated = await Organization.findOneAndUpdate(
+      { _id: req.params.id },
+      { $set: parsed.data },
+      { new: true, runValidators: true }
+    ).lean();
     if (!updated) {
-      res.status(404).json({ success: false, message: "Organization not found" });
+      res.status(404).json({ success: false, message: "Organization not found." });
       return;
     }
     res.json({ success: true, data: updated });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to update organization",
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
+  } catch {
+    res.status(500).json({ success: false, message: "Failed to update organization." });
   }
 });
 

@@ -28,11 +28,10 @@ export const VehicleCreateSchema = z.object({
   year: z.number().int().min(1970).max(2100),
   type: VehicleTypeEnum,
   status: VehicleStatusEnum.default("active"),
-  organizationId: z.string().optional(),
   telematicsData: TelematicsDataSchema.partial().optional(),
-});
+}).strict();
 
-export const VehicleUpdateSchema = VehicleCreateSchema.partial();
+export const VehicleUpdateSchema = VehicleCreateSchema.partial().strict();
 
 export const VehicleResponseSchema = VehicleCreateSchema.extend({
   id: z.string(),

@@ -1,193 +1,128 @@
 import { Router, Request, Response } from "express";
+import mongoose from "mongoose";
+import { z } from "zod";
 import { Trip } from "./trip.model";
-import { isDbConnected } from "../../config/db";
 import { Vehicle } from "../vehicle/vehicle.model";
 import { Driver } from "../drivers/driver.model";
+import { authorize } from "../auth/authorization.middleware";
+import { requireDatabase, requireOrganization } from "../auth/tenant.middleware";
 
 const router = Router();
+router.use(requireDatabase, requireOrganization);
 
-const getOrganizationId = (req: Request): string | undefined => req.user?.organizationId?.toString();
+const TripCreateSchema = z.object({
+  tripNumber: z.string().trim().min(1).max(100).optional(),
+  vehiclePlate: z.string().trim().min(2).max(20),
+  assignedDriver: z.string().trim().min(1).max(100),
+  origin: z.string().trim().min(1).max(200),
+  destination: z.string().trim().min(1).max(200),
+  cargoDescription: z.string().trim().min(1).max(500).default("General Cargo"),
+  eta: z.string().trim().min(1).max(100).default("Scheduled"),
+  status: z.enum(["dispatched", "in_transit", "delivered", "delayed"]).default("dispatched"),
+}).strict();
 
-let inMemoryTrips = [
-  {
-    _id: "trip_1",
-    organizationId: "000000000000000000000001",
-    tripNumber: "TRIP-NBO-MBA-102",
-    vehiclePlate: "KBZ-482L",
-    assignedDriver: "John Maina",
-    origin: "Nairobi Inland Container Depot",
-    destination: "Mombasa Port Kilindini",
-    cargoDescription: "Consolidated Export Tea (28 MT)",
-    eta: "Today, 22:00",
-    status: "in_transit",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    _id: "trip_2",
-    organizationId: "000000000000000000000001",
-    tripNumber: "TRIP-NBO-KSM-304",
-    vehiclePlate: "KCE-771P",
-    assignedDriver: "Samuel Karanja",
-    origin: "Athi River Steel Mill",
-    destination: "Kisumu Lakeside Hub",
-    cargoDescription: "Rebar & Structural Steel",
-    eta: "Tomorrow, 08:30",
-    status: "dispatched",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-];
+const TripUpdateSchema = z.object({
+  tripNumber: z.string().trim().min(1).max(100).optional(),
+  vehiclePlate: z.string().trim().min(2).max(20).optional(),
+  assignedDriver: z.string().trim().min(1).max(100).optional(),
+  origin: z.string().trim().min(1).max(200).optional(),
+  destination: z.string().trim().min(1).max(200).optional(),
+  cargoDescription: z.string().trim().min(1).max(500).optional(),
+  eta: z.string().trim().min(1).max(100).optional(),
+  status: z.enum(["dispatched", "in_transit", "delivered", "delayed"]).optional(),
+}).strict();
 
-// GET /api/transport - List trips in caller's organization
-router.get("/", async (req: Request, res: Response): Promise<void> => {
-  const organizationId = getOrganizationId(req);
-  if (!organizationId) {
-    res.status(403).json({ success: false, message: "Organization membership required to view dispatch trips." });
-    return;
-  }
+const organizationId = (req: Request): string => req.user!.organizationId!;
 
+async function referencesBelongToOrganization(
+  vehiclePlate: string,
+  assignedDriver: string,
+  tenantId: string
+): Promise<boolean> {
+  const normalizedPlate = vehiclePlate.toUpperCase().trim();
+  const normalizedDriver = assignedDriver.trim();
+  const [vehicle, driver] = await Promise.all([
+    Vehicle.findOne({ plateNumber: normalizedPlate, organizationId: tenantId }).select("_id").lean(),
+    Driver.findOne({ fullName: normalizedDriver, organizationId: tenantId }).select("_id").lean(),
+  ]);
+  return !!vehicle && !!driver;
+}
+
+router.get("/", authorize("transport", "read"), async (req: Request, res: Response): Promise<void> => {
   try {
-    if (isDbConnected()) {
-      const docs = await Trip.find({ organizationId }).sort({ createdAt: -1 }).lean();
-      res.json({ success: true, count: docs.length, data: docs });
-      return;
-    }
-    const records = inMemoryTrips.filter(
-      (trip) => String(trip.organizationId ?? "000000000000000000000001") === organizationId
-    );
+    const records = await Trip.find({ organizationId: organizationId(req) }).sort({ createdAt: -1 }).lean();
     res.json({ success: true, count: records.length, data: records });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch dispatch trips",
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
+  } catch {
+    res.status(500).json({ success: false, message: "Failed to fetch dispatch trips." });
   }
 });
 
-// POST /api/transport - Create trip scoped to caller's organization
-router.post("/", async (req: Request, res: Response): Promise<void> => {
-  const organizationId = getOrganizationId(req);
-  if (!organizationId) {
-    res.status(403).json({ success: false, message: "Organization membership required to create dispatch trips." });
+router.post("/", authorize("transport", "create"), async (req: Request, res: Response): Promise<void> => {
+  const parsed = TripCreateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ success: false, message: "Validation failed", errors: parsed.error.flatten().fieldErrors });
     return;
   }
-
-  const { tripNumber, vehiclePlate, assignedDriver, origin, destination, cargoDescription, eta, status } = req.body;
-
-  if (!vehiclePlate || !assignedDriver || !origin || !destination) {
-    res.status(400).json({
-      success: false,
-      message: "Please provide vehiclePlate, assignedDriver, origin, and destination",
-    });
-    return;
-  }
-
-  const normalizedPlate = String(vehiclePlate).toUpperCase().trim();
-  const vehicle = await Vehicle.findOne({ plateNumber: normalizedPlate, organizationId }).lean();
-  if (!vehicle) {
-    res.status(400).json({ success: false, message: "Vehicle plate must belong to your organization." });
-    return;
-  }
-
-  const driver = await Driver.findOne({ fullName: String(assignedDriver).trim(), organizationId }).lean();
-  if (!driver) {
-    res.status(400).json({ success: false, message: "Assigned driver must belong to your organization." });
-    return;
-  }
-
-  const payload = {
-    tripNumber: tripNumber || `TRIP-${Math.floor(100 + Math.random() * 900)}`,
-    vehiclePlate: normalizedPlate,
-    assignedDriver: String(assignedDriver).trim(),
-    origin: String(origin).trim(),
-    destination: String(destination).trim(),
-    cargoDescription: String(cargoDescription || "General Cargo").trim(),
-    eta: String(eta || "Scheduled").trim(),
-    status: status || "dispatched",
-    organizationId,
-  };
-
+  const plate = parsed.data.vehiclePlate.toUpperCase().trim();
   try {
-    if (isDbConnected()) {
-      const created = await Trip.create(payload);
-      res.status(201).json({ success: true, data: created });
+    if (!(await referencesBelongToOrganization(plate, parsed.data.assignedDriver, organizationId(req)))) {
+      res.status(400).json({ success: false, message: "Assigned vehicle and driver must belong to your organization." });
       return;
     }
-
-    const created = {
-      _id: `trip_${Date.now()}`,
-      ...payload,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    inMemoryTrips.unshift(created as any);
+    const created = await Trip.create({
+      ...parsed.data,
+      tripNumber: parsed.data.tripNumber || `TRIP-${Math.floor(100 + Math.random() * 900)}`,
+      vehiclePlate: plate,
+      organizationId: organizationId(req),
+    });
     res.status(201).json({ success: true, data: created });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to create trip",
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
+  } catch {
+    res.status(500).json({ success: false, message: "Failed to create trip." });
   }
 });
 
-// PATCH /api/transport/:id - Update trip within the caller's organization
-router.patch("/:id", async (req: Request, res: Response): Promise<void> => {
-  const organizationId = getOrganizationId(req);
-  if (!organizationId) {
-    res.status(403).json({ success: false, message: "Organization membership required to update dispatch trips." });
+router.patch("/:id", authorize("transport", "update"), async (req: Request, res: Response): Promise<void> => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(404).json({ success: false, message: "Trip not found." });
     return;
   }
-
-  const { id } = req.params;
-  const updates = req.body;
-
-  if (updates.vehiclePlate) {
-    const normalizedPlate = String(updates.vehiclePlate).toUpperCase().trim();
-    const vehicle = await Vehicle.findOne({ plateNumber: normalizedPlate, organizationId }).lean();
-    if (!vehicle) {
-      res.status(400).json({ success: false, message: "Vehicle plate must belong to your organization." });
-      return;
-    }
+  const parsed = TripUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ success: false, message: "Validation failed", errors: parsed.error.flatten().fieldErrors });
+    return;
   }
-
-  if (updates.assignedDriver) {
-    const driver = await Driver.findOne({ fullName: String(updates.assignedDriver).trim(), organizationId }).lean();
-    if (!driver) {
-      res.status(400).json({ success: false, message: "Assigned driver must belong to your organization." });
-      return;
-    }
-  }
-
   try {
-    if (isDbConnected()) {
-      const updated = await Trip.findOneAndUpdate({ _id: id, organizationId }, { $set: updates }, { new: true }).lean();
-      if (!updated) {
-        res.status(404).json({ success: false, message: "Trip not found" });
-        return;
-      }
-      res.json({ success: true, data: updated });
+    const existing = await Trip.findOne({
+      _id: req.params.id,
+      organizationId: organizationId(req),
+    }).lean();
+    if (!existing) {
+      res.status(404).json({ success: false, message: "Trip not found." });
       return;
     }
 
-    const index = inMemoryTrips.findIndex(
-      (trip) => String(trip._id) === id && String(trip.organizationId ?? "000000000000000000000001") === organizationId
-    );
-    if (index === -1) {
-      res.status(404).json({ success: false, message: "Trip not found" });
+    const vehiclePlate = parsed.data.vehiclePlate ?? existing.vehiclePlate;
+    const assignedDriver = parsed.data.assignedDriver ?? existing.assignedDriver;
+    if (!(await referencesBelongToOrganization(vehiclePlate, assignedDriver, organizationId(req)))) {
+      res.status(400).json({ success: false, message: "Assigned vehicle and driver must belong to your organization." });
       return;
     }
-    const merged = { ...inMemoryTrips[index], ...updates, updatedAt: new Date() };
-    inMemoryTrips[index] = merged as any;
-    res.json({ success: true, data: merged });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to update trip",
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
+    const updates = {
+      ...parsed.data,
+      ...(parsed.data.vehiclePlate ? { vehiclePlate: parsed.data.vehiclePlate.toUpperCase().trim() } : {}),
+    };
+    const updated = await Trip.findOneAndUpdate(
+      { _id: req.params.id, organizationId: organizationId(req) },
+      { $set: updates },
+      { new: true, runValidators: true }
+    ).lean();
+    if (!updated) {
+      res.status(404).json({ success: false, message: "Trip not found." });
+      return;
+    }
+    res.json({ success: true, data: updated });
+  } catch {
+    res.status(500).json({ success: false, message: "Failed to update trip." });
   }
 });
 

@@ -29,7 +29,13 @@ export const OrganizationCreateSchema = z.object({
   plan: z.enum(["free", "pro", "enterprise"]).default("free"),
 });
 
-export const OrganizationUpdateSchema = OrganizationCreateSchema.partial();
+export const OrganizationUpdateSchema = z.object({
+  name: z.string().min(2).max(100).optional(),
+  contactEmail: z.string().email().optional(),
+  phone: z.string().min(7).max(20).optional(),
+  address: z.string().max(200).optional(),
+  country: z.string().max(60).optional(),
+}).strict();
 
 export type OrganizationCreateInput = z.infer<typeof OrganizationCreateSchema>;
 export type OrganizationUpdateInput = z.infer<typeof OrganizationUpdateSchema>;

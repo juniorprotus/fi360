@@ -1,7 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { createServer } from "node:net";
-import { access, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { access } from "node:fs/promises";
 import { join } from "node:path";
 import { MongoMemoryServer } from "mongodb-memory-server";
 
@@ -129,18 +128,17 @@ async function runTests(): Promise<void> {
     throw new Error("In-memory authentication tests cannot run with NODE_ENV=production.");
   }
 
-  const downloadDirectory = await mkdtemp(join(tmpdir(), "fi360-auth-test-mongo-"));
   const previousDownloadDirectory = process.env.MONGOMS_DOWNLOAD_DIR;
   const previousSystemBinary = process.env.MONGOMS_SYSTEM_BINARY;
   let mongo: MongoMemoryServer | undefined;
   let productionServer: ChildProcess | undefined;
 
-  process.env.MONGOMS_DOWNLOAD_DIR = downloadDirectory;
+  delete process.env.MONGOMS_DOWNLOAD_DIR;
   delete process.env.MONGOMS_SYSTEM_BINARY;
 
   try {
     mongo = await MongoMemoryServer.create({
-      binary: { downloadDir: downloadDirectory, version: MONGODB_VERSION },
+      binary: { version: MONGODB_VERSION },
       instance: { dbName: DATABASE_NAME, ip: HOST },
     });
 
@@ -157,7 +155,7 @@ async function runTests(): Promise<void> {
       MONGODB_URI: connectionString,
       JWT_SECRET: testSecret,
       JWT_EXPIRES_IN: "15m",
-      FRONTEND_URL: "http://localhost:3000",
+      FRONTEND_URL: "https://fi360-auth-test.example",
       PORT: String(productionPort),
     };
     delete commonTestEnv.FI360_REQUIRE_DATABASE;
@@ -199,7 +197,6 @@ async function runTests(): Promise<void> {
       } else {
         process.env.MONGOMS_SYSTEM_BINARY = previousSystemBinary;
       }
-      await rm(downloadDirectory, { recursive: true, force: true });
     }
   }
 }

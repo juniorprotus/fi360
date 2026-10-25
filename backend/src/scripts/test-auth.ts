@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import http from "node:http";
+import jwt from "jsonwebtoken";
 import app from "../server";
 import { AuthService } from "../modules/auth/auth.service";
 import { User } from "../modules/auth/user.model";
 import { Organization } from "../modules/organization/organization.model";
 import { isDbConnected, connectDB, disconnectDB } from "../config/db";
+import { getEnv } from "../config/env";
 
 let server: http.Server | undefined;
 let baseUrl: string;
@@ -25,7 +27,11 @@ function request(
 ): Promise<TestResponse> {
   return new Promise((resolve, reject) => {
     const postData = body === undefined ? "" : JSON.stringify(body);
-    const reqHeaders: Record<string, string> = { ...headers };
+    const reqHeaders: Record<string, string> = {
+      Origin: process.env.FRONTEND_URL || "http://localhost:3000",
+      "X-FI360-Request": "1",
+      ...headers,
+    };
     if (body !== undefined) {
       reqHeaders["Content-Type"] = "application/json";
       reqHeaders["Content-Length"] = Buffer.byteLength(postData).toString();
@@ -97,13 +103,11 @@ async function runTests(): Promise<void> {
   }
 
   await connectDB();
-  if (process.env.FI360_REQUIRE_DATABASE === "1" && !isDbConnected()) {
-    throw new Error("Database-backed authentication was required but MongoDB is unavailable.");
+  if (!isDbConnected()) {
+    throw new Error("Authentication regression tests require an isolated database; use test:auth:memory.");
   }
 
-  console.log(
-    `\nFI360 authentication regression suite (${isDbConnected() ? "MongoDB-backed" : "offline fallback"})\n`
-  );
+  console.log("\nFI360 authentication regression suite (MongoDB-backed)\n");
 
   try {
     server = await new Promise<http.Server>((resolve) => {
@@ -132,6 +136,21 @@ async function runTests(): Promise<void> {
       Cookie: "fi360_token=not-a-real-token",
     });
     check(forged.status === 401, "forged cookie is rejected");
+
+    const expiredToken = jwt.sign(
+      {
+        userId: "000000000000000000000000",
+        email: "expired@example.test",
+        name: "Expired Session",
+        role: "owner",
+      },
+      getEnv().JWT_SECRET,
+      { expiresIn: -1 }
+    );
+    const expiredSession = await request("GET", "/api/auth/me", undefined, {
+      Cookie: `fi360_token=${expiredToken}`,
+    });
+    check(expiredSession.status === 401, "expired cookie is rejected");
 
     const unknownToken = AuthService.generateToken({
       userId: "000000000000000000000000",

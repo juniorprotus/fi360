@@ -16,7 +16,6 @@ export interface User {
 
 interface AuthContextType {
   user: User | null;
-  token: string | null;
   isLoading: boolean;
   login: (
     email: string,
@@ -46,7 +45,6 @@ const API_BASE: string = (() => {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const router = useRouter();
 
@@ -67,7 +65,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem("fi360_auth_token");
         localStorage.removeItem("fi360_auth_user");
         setUser(null);
-        setToken(null);
         return;
       }
 
@@ -83,8 +80,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           plan: data.user.plan || "Professional",
         };
         setUser(verifiedUser);
-        setToken(null);
-        localStorage.setItem("fi360_auth_user", JSON.stringify(verifiedUser));
       } else {
         throw new Error("Invalid session verification payload");
       }
@@ -92,7 +87,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem("fi360_auth_token");
       localStorage.removeItem("fi360_auth_user");
       setUser(null);
-      setToken(null);
     } finally {
       setIsLoading(false);
     }
@@ -117,6 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-FI360-Request": "1",
         },
         credentials: "include",
         body: JSON.stringify({ email: email.trim(), password }),
@@ -139,8 +134,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
 
       setUser(authenticatedUser);
-      setToken(null);
-      localStorage.setItem("fi360_auth_user", JSON.stringify(authenticatedUser));
 
       const redirectUrl =
         data.redirectUrl || getDefaultRouteForRole(authenticatedUser.role);
@@ -167,6 +160,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-FI360-Request": "1",
         },
         credentials: "include",
         body: JSON.stringify(data),
@@ -189,8 +183,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
 
       setUser(newUser);
-      setToken(null);
-      localStorage.setItem("fi360_auth_user", JSON.stringify(newUser));
 
       return {
         success: true,
@@ -210,6 +202,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await fetch(`${API_BASE}/api/auth/logout`, {
         method: "POST",
+        headers: { "X-FI360-Request": "1" },
         credentials: "include",
       });
     } catch {
@@ -218,7 +211,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem("fi360_auth_token");
       localStorage.removeItem("fi360_auth_user");
       setUser(null);
-      setToken(null);
       router.push("/login");
     }
   };
@@ -227,7 +219,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
-        token,
         isLoading,
         login,
         register,

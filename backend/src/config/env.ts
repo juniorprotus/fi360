@@ -65,11 +65,18 @@ export function validateEnv(): Env {
     if (INSECURE_JWT_SECRETS.has(env.JWT_SECRET)) {
       throw new Error("Production startup refused: JWT_SECRET must not use the insecure default value.");
     }
+    if (env.FRONTEND_URL === "http://localhost:3000") {
+      throw new Error("Production startup refused: FRONTEND_URL must be the exact HTTPS frontend origin.");
+    }
+    const frontendOrigin = new URL(env.FRONTEND_URL);
+    if (frontendOrigin.protocol !== "https:" || frontendOrigin.origin !== env.FRONTEND_URL) {
+      throw new Error("Production startup refused: FRONTEND_URL must be an HTTPS origin without a path.");
+    }
   }
 
   if (!env.MONGODB_URI) {
     console.warn(
-      "⚠️  MONGODB_URI not set — running in offline fallback mode (in-memory data). Set this in Render environment variables to enable persistence."
+      "⚠️  MONGODB_URI not set — database-backed API requests will return service unavailable."
     );
   }
   if (!env.GEMINI_API_KEY) {

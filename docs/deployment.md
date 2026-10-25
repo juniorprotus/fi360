@@ -27,10 +27,14 @@ In Render → Service → **Environment** tab, add:
 | `NODE_ENV` | `production` |
 | `MONGODB_URI` | your Atlas connection string |
 | `JWT_SECRET` | A unique, cryptographically random secret stored as a Render secret environment variable (at least 16 characters; do not use the development default) |
-| `FRONTEND_URL` | `https://your-app.vercel.app` (update after Vercel deploy) |
+| `FRONTEND_URL` | The exact HTTPS origin of the production Vercel frontend (for example, `https://fleet.example.com`) |
 | `GEMINI_API_KEY` | your Gemini key (Phase 4) |
 
-The service intentionally refuses to start in production unless both `MONGODB_URI` and a secure `JWT_SECRET` are configured. Do not put secret values in `render.yaml` or source control.
+The service intentionally refuses to start in production unless `MONGODB_URI`, a secure `JWT_SECRET`, and the exact HTTPS `FRONTEND_URL` origin are configured. Do not put secret values in `render.yaml` or source control. Vercel preview URLs are not trusted; configure a separate explicit origin only if the deployment design is approved.
+
+Cookie-authenticated state-changing requests require the configured frontend `Origin` and the `X-FI360-Request: 1` header. The frontend client sets this header automatically. The production cookie remains `SameSite=None; Secure` for the cross-site Vercel/Render topology; actual browser cookie acceptance and blocking behavior must still be verified on the deployed domains.
+
+`/api/health` is the database readiness endpoint used by Render and returns HTTP 503 when MongoDB is unavailable. `/api/live` reports HTTP-process liveness without implying database readiness.
 
 ### D. Get Your Render URL
 After deploying, Render assigns a URL like:

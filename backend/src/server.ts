@@ -19,6 +19,8 @@ import cookieParser from "cookie-parser";
 import { authRoutes } from "./modules/auth/auth.routes";
 import { userRoutes } from "./modules/auth/user.routes";
 import { authenticate } from "./modules/auth/auth.middleware";
+import { isTrustedOrigin, protectStateChangingRequests } from "./modules/auth/request-protection";
+import { requireDatabase, requireOrganization } from "./modules/auth/tenant.middleware";
 
 // Load .env file first
 dotenv.config();
@@ -36,53 +38,49 @@ app.use(cookieParser());
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow uptime bots, mobile, curl (no origin header)
+      // Non-browser clients may omit Origin; browser origins must match exactly.
       if (!origin) return callback(null, true);
-
-      const allowedOrigins = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        config.FRONTEND_URL,
-      ].filter(Boolean) as string[];
-
-      // Vercel preview URLs follow pattern: *.vercel.app
-      const isVercelPreview = origin.endsWith(".vercel.app");
-      const isAllowed = allowedOrigins.some((allowed) =>
-        origin.startsWith(allowed)
-      );
-
-      return callback(null, isAllowed || isVercelPreview);
+      return callback(null, isTrustedOrigin(origin));
     },
     credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization", "X-FI360-Request"],
   })
 );
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan(config.NODE_ENV === "production" ? "combined" : "dev"));
+app.use(protectStateChangingRequests);
 
-// 2. Anti-Hibernation Health Check (Render Free-Tier Strategy)
-// ============================================================
-// cron-job.org pings this every 14 minutes to prevent Render cold starts.
-// This endpoint MUST remain fast and never depend on DB connectivity.
-app.get("/api/health", (_req: Request, res: Response) => {
+app.get("/api/live", (_req: Request, res: Response) => {
   const uptimeSeconds = Math.floor((Date.now() - startTime) / 1000);
-  const dbStatus = isDbConnected() ? "connected" : "offline_fallback";
-
   res.status(200).json({
-    status: "ok",
+    status: "live",
     service: "fi360-backend",
     version: "1.0.0",
     environment: config.NODE_ENV,
     uptime: uptimeSeconds,
     timestamp: new Date().toISOString(),
-    database: dbStatus,
+  });
+});
+
+app.get("/api/health", (_req: Request, res: Response) => {
+  const uptimeSeconds = Math.floor((Date.now() - startTime) / 1000);
+  const databaseReady = isDbConnected();
+  res.status(databaseReady ? 200 : 503).json({
+    status: databaseReady ? "ok" : "not_ready",
+    service: "fi360-backend",
+    version: "1.0.0",
+    environment: config.NODE_ENV,
+    uptime: uptimeSeconds,
+    timestamp: new Date().toISOString(),
+    database: databaseReady ? "connected" : "unavailable",
     modules: {
-      auth: "active",
-      vehicles: "active",
-      drivers: "active",
-      maintenance: "active",
-      organizations: "active",
-      ai: config.GEMINI_API_KEY ? "active" : "standby",
+      auth: databaseReady ? "active" : "unavailable",
+      vehicles: databaseReady ? "active" : "unavailable",
+      drivers: databaseReady ? "active" : "unavailable",
+      maintenance: databaseReady ? "active" : "unavailable",
+      organizations: databaseReady ? "active" : "unavailable",
+      ai: config.GEMINI_API_KEY && databaseReady ? "active" : "standby",
     },
   });
 });
@@ -96,6 +94,7 @@ app.get("/", (_req: Request, res: Response) => {
     docs: "/api/health",
     endpoints: [
       "/api/health",
+      "/api/live",
       "/api/auth/login",
       "/api/auth/register",
       "/api/auth/me",
@@ -113,15 +112,15 @@ app.use("/api/auth", authRoutes);
 
 // 4. Protected Subsystems (Require Authenticated Bearer Token or Session Cookie)
 app.use("/api/users", userRoutes);
-app.use("/api/organizations", authenticate, organizationRoutes);
-app.use("/api/vehicles", authenticate, vehicleRoutes);
-app.use("/api/drivers", authenticate, driverRoutes);
-app.use("/api/maintenance", authenticate, maintenanceRoutes);
-app.use("/api/ai", authenticate, aiRoutes);
-app.use("/api/tyres", authenticate, tyreRoutes);
-app.use("/api/fuel", authenticate, fuelRoutes);
-app.use("/api/inspections", authenticate, inspectionRoutes);
-app.use("/api/transport", authenticate, transportRoutes);
+app.use("/api/organizations", authenticate, requireDatabase, requireOrganization, organizationRoutes);
+app.use("/api/vehicles", authenticate, requireDatabase, requireOrganization, vehicleRoutes);
+app.use("/api/drivers", authenticate, requireDatabase, requireOrganization, driverRoutes);
+app.use("/api/maintenance", authenticate, requireDatabase, requireOrganization, maintenanceRoutes);
+app.use("/api/ai", authenticate, requireDatabase, requireOrganization, aiRoutes);
+app.use("/api/tyres", authenticate, requireDatabase, requireOrganization, tyreRoutes);
+app.use("/api/fuel", authenticate, requireDatabase, requireOrganization, fuelRoutes);
+app.use("/api/inspections", authenticate, requireDatabase, requireOrganization, inspectionRoutes);
+app.use("/api/transport", authenticate, requireDatabase, requireOrganization, transportRoutes);
 
 // 4. 404 Handler
 app.use((_req: Request, res: Response) => {
@@ -147,7 +146,7 @@ async function startServer(): Promise<void> {
     console.log(`\n🚀 FI360 Backend running on port ${PORT}`);
     console.log(`🌍 Environment: ${config.NODE_ENV}`);
     console.log(`🩺 Health: http://localhost:${PORT}/api/health`);
-    console.log(`📦 DB: ${isDbConnected() ? "✅ MongoDB connected" : "⚠️ Offline Fallback"}\n`);
+    console.log(`📦 DB: ${isDbConnected() ? "✅ MongoDB connected" : "⚠️ Database unavailable"}\n`);
   });
 
   // Graceful shutdown on Render restart / SIGTERM

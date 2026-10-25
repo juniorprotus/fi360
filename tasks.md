@@ -176,3 +176,18 @@
 - [x] Added body-parser regressions confirming valid JSON, malformed JSON rejection, the existing 1 MB request limit, and valid gzip-compressed JSON.
 - [x] `npm run test:users:memory` passed all 28 assertions against isolated MongoDB; `npm run test:auth` passed 12 assertions in offline fallback mode.
 - [x] Backend TypeScript check, schema tests (20 checks), body-parser tests (4 checks), `npm audit` (0 vulnerabilities), installed dependency-tree verification, and `git diff --check` passed.
+
+## 2026-10-25 Phase 1 Tenant and Security Hardening
+- [x] Rechecked the current branch and confirmed the worktree was clean before implementation; kept Phase 2 driver linkage, phone synchronization, and cargo workflows out of scope.
+- [x] Replaced organization enumeration and cross-tenant organization access with authenticated tenant-scoped reads; restricted profile updates to owners and allowlisted non-billing fields; kept organization creation inside account registration.
+- [x] Added explicit backend resource-role authorization and tenant/database middleware; removed legacy domain fallback services and hard-coded tenant assignment paths.
+- [x] Reworked vehicle, driver, maintenance, tyre, fuel, inspection, and transport writes to use validated field allowlists, tenant-scoped queries, and same-tenant vehicle/driver references.
+- [x] Bound inspection identity to the verified authenticated account rather than request-provided inspector names; protected AI requests that reference vehicles with a tenant-owned lookup.
+- [x] Replaced permissive Vercel CORS patterns with exact origin matching and added trusted-origin plus custom-header CSRF checks for cookie-authenticated mutations and auth mutations.
+- [x] Removed the unused frontend in-memory bearer-token state and stopped reading legacy bearer credentials from browser storage; frontend API calls now use the HttpOnly cookie session.
+- [x] Changed database-dependent APIs and authentication to fail closed without MongoDB; made readiness return HTTP 503 when database-unavailable and added separate HTTP liveness.
+- [x] Added a loopback-only temporary MongoDB security regression suite (`npm run test:security:memory`) and documented the role matrix, deployment-origin setup, and remaining session-revocation limitation.
+- [x] Added database-unavailable handling for password reset and mapped mid-request database disconnections to HTTP 503 in authentication handlers.
+- [x] Verified the two-tenant security suite (33/33), database-backed authentication suite (22/22, including compiled production startup and expired-cookie rejection), and user-management suite (28/28).
+- [x] Backend lint/build, frontend TypeScript/build, schema checks (20), body-parser regressions (4), `npm audit` (0 vulnerabilities), dependency tree, and `git diff --check` passed.
+- [x] Confirmed the final diff contains no production deployment, migration, or production-data operations.

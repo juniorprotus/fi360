@@ -11,15 +11,14 @@ const API_BASE: string = (() => {
 })();
 
 /**
- * Attaches Authorization Bearer token to backend requests and enables credentials.
+ * Sends browser requests with the HttpOnly cookie session.
  */
 function authFetch(url: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const isBackendCall = typeof url === "string" && url.startsWith(API_BASE!);
   if (isBackendCall && typeof window !== "undefined") {
     const headers = new Headers(init?.headers || {});
-    const legacyToken = localStorage.getItem("fi360_auth_token");
-    if (legacyToken) {
-      localStorage.removeItem("fi360_auth_token");
+    if (!["GET", "HEAD", "OPTIONS"].includes((init?.method || "GET").toUpperCase())) {
+      headers.set("X-FI360-Request", "1");
     }
     return fetch(url, {
       ...init,

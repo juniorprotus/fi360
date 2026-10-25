@@ -15,7 +15,8 @@
     "test:body-parser": "tsx src/scripts/test-body-parser.ts",
     "test:schemas": "tsx src/scripts/test-schemas.ts",
     "test:users": "tsx src/scripts/test-users.ts",
-    "test:users:memory": "tsx src/scripts/test-users-memory.ts"
+    "test:users:memory": "tsx src/scripts/test-users-memory.ts",
+    "test:security:memory": "tsx src/scripts/test-security-memory.ts"
   },
   "keywords": [
     "fleet-management",

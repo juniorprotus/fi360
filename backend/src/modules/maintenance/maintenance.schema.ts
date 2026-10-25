@@ -16,9 +16,9 @@ export const MaintenanceCreateSchema = z.object({
   odometerKmAtService: z.number().nonnegative().optional(),
   workshopNotes: z.string().optional(),
   aiPredictionRef: z.string().optional(),
-});
+}).strict();
 
-export const MaintenanceUpdateSchema = MaintenanceCreateSchema.partial();
+export const MaintenanceUpdateSchema = MaintenanceCreateSchema.partial().strict();
 
 export type MaintenanceCreateInput = z.infer<typeof MaintenanceCreateSchema>;
 export type MaintenanceUpdateInput = z.infer<typeof MaintenanceUpdateSchema>;

@@ -6,9 +6,6 @@ import { Organization } from "../organization/organization.model";
 import { AuthUserPayload, UserRole } from "./auth.types";
 import { isDbConnected } from "../../config/db";
 
-// In-memory fallback registry for offline development mode when MongoDB Atlas is unreachable
-const inMemoryUsers: Map<string, { user: IUser; passwordHash: string }> = new Map();
-
 export class InvalidUserSessionError extends Error {
   constructor() {
     super("User session is invalid or has been revoked.");
@@ -24,8 +21,8 @@ export class AuthDatabaseUnavailableError extends Error {
 }
 
 export class AuthService {
-  private static requireProductionDatabase(): void {
-    if (process.env.NODE_ENV === "production" && !isDbConnected()) {
+  private static requireDatabase(): void {
+    if (!isDbConnected()) {
       throw new AuthDatabaseUnavailableError();
     }
   }
@@ -68,20 +65,10 @@ export class AuthService {
     email: string,
     password: string
   ): Promise<{ token: string; user: AuthUserPayload; redirectUrl: string }> {
-    this.requireProductionDatabase();
+    this.requireDatabase();
     const normalizedEmail = email.trim().toLowerCase();
 
-    let user: IUser | null = null;
-
-    if (isDbConnected()) {
-      user = await User.findOne({ email: normalizedEmail }).select("+password");
-    } else {
-      const memoryEntry = inMemoryUsers.get(normalizedEmail);
-      if (memoryEntry) {
-        user = memoryEntry.user;
-        user.password = memoryEntry.passwordHash;
-      }
-    }
+    const user = await User.findOne({ email: normalizedEmail }).select("+password");
 
     // Timing-safe response: reject without revealing whether the email exists
     if (!user) {
@@ -101,13 +88,11 @@ export class AuthService {
 
     // Update lastLoginAt
     user.lastLoginAt = new Date();
-    if (isDbConnected()) {
-      await user.save();
-    }
+    await user.save();
 
     // Determine organization details
     let orgName = user.organizationName || "FI360 Organization";
-    if (isDbConnected() && user.organizationId && !user.organizationName) {
+    if (user.organizationId && !user.organizationName) {
       const org = await Organization.findById(user.organizationId);
       if (org) orgName = org.name;
     }
@@ -136,79 +121,44 @@ export class AuthService {
     name: string;
     organizationName: string;
   }): Promise<{ token: string; user: AuthUserPayload; redirectUrl: string }> {
-    this.requireProductionDatabase();
+    this.requireDatabase();
     const normalizedEmail = data.email.trim().toLowerCase();
 
-    if (isDbConnected()) {
-      const existing = await User.findOne({ email: normalizedEmail });
-      if (existing) {
-        throw new Error("An account with this email address already exists.");
-      }
-    } else if (inMemoryUsers.has(normalizedEmail)) {
+    const existing = await User.findOne({ email: normalizedEmail });
+    if (existing) {
       throw new Error("An account with this email address already exists.");
     }
 
-    const fallbackOrganizationId = "000000000000000000000001";
-    let organizationId: string | undefined;
+    const slug = data.organizationName
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
 
-    if (isDbConnected()) {
-      const slug = data.organizationName
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, "-")
-        .replace(/-+/g, "-")
-        .replace(/^-|-$/g, "");
+    const uniqueSlug = `${slug}-${Date.now().toString(36)}`;
+    const org = await Organization.create({
+      name: data.organizationName.trim(),
+      slug: uniqueSlug,
+      plan: "pro",
+      enabledModules: ["vehicles", "drivers", "maintenance", "telematics", "fuel", "ai"],
+    });
 
-      const uniqueSlug = `${slug}-${Date.now().toString(36)}`;
-
-      const org = await Organization.create({
-        name: data.organizationName.trim(),
-        slug: uniqueSlug,
-        plan: "pro",
-        enabledModules: ["vehicles", "drivers", "maintenance", "telematics", "fuel", "ai"],
-      });
-      organizationId = org._id.toString();
-    } else {
-      organizationId = fallbackOrganizationId;
-    }
-
-    let user: IUser;
-
-    if (isDbConnected()) {
-      user = await User.create({
-        email: normalizedEmail,
-        password: data.password,
-        name: data.name.trim(),
-        role: "owner" as UserRole,
-        organizationId: organizationId,
-        organizationName: data.organizationName.trim(),
-        status: "active",
-      });
-    } else {
-      // In-memory fallback
-      const bcrypt = await import("bcryptjs");
-      const salt = await bcrypt.genSalt(10);
-      const passwordHash = await bcrypt.hash(data.password, salt);
-      const mockId = new (await import("mongoose")).Types.ObjectId();
-
-      user = new User({
-        _id: mockId,
-        email: normalizedEmail,
-        name: data.name.trim(),
-        role: "owner" as UserRole,
-        organizationId: fallbackOrganizationId,
-        organizationName: data.organizationName.trim(),
-        status: "active",
-      });
-
-      inMemoryUsers.set(normalizedEmail, { user, passwordHash });
-    }
+    const user = await User.create({
+      email: normalizedEmail,
+      password: data.password,
+      name: data.name.trim(),
+      role: "owner" as UserRole,
+      organizationId: org._id,
+      organizationName: data.organizationName.trim(),
+      status: "active",
+    });
 
     const payload: AuthUserPayload = {
       userId: user._id.toString(),
       email: user.email,
       name: user.name,
       role: user.role,
-      organizationId: user.organizationId?.toString(),
+      organizationId: org._id.toString(),
       organizationName: user.organizationName,
     };
 
@@ -220,23 +170,8 @@ export class AuthService {
    * Get current authenticated user profile
    */
   public static async getCurrentUser(userId: string): Promise<AuthUserPayload> {
-    this.requireProductionDatabase();
-    let user: IUser | null = null;
-
-    if (isDbConnected()) {
-      user = await User.findById(userId);
-    } else {
-      for (const [_, entry] of inMemoryUsers.entries()) {
-        if (entry.user._id.toString() === userId) {
-          user = entry.user;
-          break;
-        }
-      }
-
-      if (!user) {
-        throw new AuthDatabaseUnavailableError();
-      }
-    }
+    this.requireDatabase();
+    const user: IUser | null = await User.findById(userId);
 
     if (!user || user.status !== "active") {
       throw new InvalidUserSessionError();
@@ -258,11 +193,11 @@ export class AuthService {
   public static async requestPasswordReset(
     email: string
   ): Promise<{ success: boolean; message: string }> {
+    this.requireDatabase();
     const normalizedEmail = email.trim().toLowerCase();
 
-    if (isDbConnected()) {
-      const user = await User.findOne({ email: normalizedEmail });
-      if (user) {
+    const user = await User.findOne({ email: normalizedEmail });
+    if (user) {
         const resetToken = crypto.randomBytes(32).toString("hex");
         const hashedToken = crypto
           .createHash("sha256")
@@ -273,10 +208,7 @@ export class AuthService {
         user.passwordResetExpires = new Date(Date.now() + 3600000); // 1 hour
         await user.save();
 
-        console.log(
-          `🔑 [FI360 Security] Password reset token generated for ${user.email}. (Expires in 1h)`
-        );
-      }
+        console.log("Password reset token created; delivery is not configured.");
     }
 
     // Always return generic confirmation to prevent user enumeration
@@ -294,6 +226,7 @@ export class AuthService {
     token: string,
     newPassword: string
   ): Promise<{ success: boolean; message: string }> {
+    this.requireDatabase();
     if (!token || !newPassword || newPassword.length < 8) {
       throw new Error(
         "Invalid request. Password must be at least 8 characters with a valid token."
@@ -302,28 +235,24 @@ export class AuthService {
 
     const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
 
-    if (isDbConnected()) {
-      const user = await User.findOne({
-        passwordResetToken: hashedToken,
-        passwordResetExpires: { $gt: new Date() },
-      }).select("+passwordResetToken +passwordResetExpires");
+    const user = await User.findOne({
+      passwordResetToken: hashedToken,
+      passwordResetExpires: { $gt: new Date() },
+    }).select("+passwordResetToken +passwordResetExpires");
 
-      if (!user) {
-        throw new Error("Password reset token is invalid or has expired.");
-      }
-
-      user.password = newPassword;
-      user.passwordResetToken = undefined;
-      user.passwordResetExpires = undefined;
-      await user.save();
-
-      return {
-        success: true,
-        message: "Your password has been successfully updated. You may now log in.",
-      };
+    if (!user) {
+      throw new Error("Password reset token is invalid or has expired.");
     }
 
-    throw new Error("Database connection required to complete password reset.");
+    user.password = newPassword;
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save();
+
+    return {
+      success: true,
+      message: "Your password has been successfully updated. You may now log in.",
+    };
   }
 
   public static getDefaultRouteForRole(role: UserRole): string {

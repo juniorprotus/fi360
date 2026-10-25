@@ -24,9 +24,6 @@ services:
         value: production
       - key: PORT
         value: 10000        # Render assigns PORT automatically; this is the default
-      - key: FRONTEND_URL
-        value: https://fi360.vercel.app   # Update with your actual Vercel URL after deploy
-
       # Secrets — Add these manually in Render Dashboard:
       # - key: MONGODB_URI
       #   value: mongodb+srv://...

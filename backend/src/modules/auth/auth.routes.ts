@@ -3,6 +3,7 @@ import { z } from "zod";
 import rateLimit from "express-rate-limit";
 import { AuthDatabaseUnavailableError, AuthService, InvalidUserSessionError } from "./auth.service";
 import { authenticate } from "./auth.middleware";
+import { isDbConnected } from "../../config/db";
 
 const router = Router();
 
@@ -83,7 +84,7 @@ router.post("/login", authLimiter, async (req: Request, res: Response): Promise<
       redirectUrl: result.redirectUrl,
     });
   } catch (error) {
-    if (error instanceof AuthDatabaseUnavailableError) {
+    if (error instanceof AuthDatabaseUnavailableError || !isDbConnected()) {
       res.status(503).json({
         success: false,
         message: "Authentication service is temporarily unavailable.",
@@ -122,7 +123,7 @@ router.post("/register", authLimiter, async (req: Request, res: Response): Promi
       redirectUrl: result.redirectUrl,
     });
   } catch (error) {
-    if (error instanceof AuthDatabaseUnavailableError) {
+    if (error instanceof AuthDatabaseUnavailableError || !isDbConnected()) {
       res.status(503).json({
         success: false,
         message: "Authentication service is temporarily unavailable.",
@@ -153,7 +154,7 @@ router.get("/me", authenticate, async (req: Request, res: Response, next: NextFu
       user: userProfile,
     });
   } catch (error) {
-    if (error instanceof AuthDatabaseUnavailableError) {
+    if (error instanceof AuthDatabaseUnavailableError || !isDbConnected()) {
       res.status(503).json({
         success: false,
         message: "Authentication service is temporarily unavailable.",
@@ -204,8 +205,16 @@ router.post("/forgot-password", authLimiter, async (req: Request, res: Response)
     return;
   }
 
-  const result = await AuthService.requestPasswordReset(parseResult.data.email);
-  res.status(200).json(result);
+  try {
+    const result = await AuthService.requestPasswordReset(parseResult.data.email);
+    res.status(200).json(result);
+  } catch (error) {
+    if (error instanceof AuthDatabaseUnavailableError || !isDbConnected()) {
+      res.status(503).json({ success: false, message: "Authentication service is temporarily unavailable." });
+      return;
+    }
+    res.status(500).json({ success: false, message: "Password reset could not be initiated." });
+  }
 });
 
 /**
@@ -229,6 +238,10 @@ router.post("/reset-password", authLimiter, async (req: Request, res: Response):
     );
     res.status(200).json(result);
   } catch (error) {
+    if (error instanceof AuthDatabaseUnavailableError || !isDbConnected()) {
+      res.status(503).json({ success: false, message: "Authentication service is temporarily unavailable." });
+      return;
+    }
     res.status(400).json({
       success: false,
       message: error instanceof Error ? error.message : "Password reset failed.",
