@@ -158,6 +158,11 @@
 - [x] Existing `npm run test:users:memory` passed all 28 database-backed assertions.
 - [x] Backend TypeScript check and production compilation passed; schema tests (20 checks), body-parser tests (4 checks), `npm audit` (0 vulnerabilities), and `git diff --check` passed.
 - [x] Documented the required Render `JWT_SECRET` secret after supplied failed-deployment logs confirmed the configured service did not have this required production variable. No deployment or production settings were changed.
+
+## 2026-10-25 Render TypeScript Build Dependency Fix
+- [x] Diagnosed Render compile errors: `npm ci` ran in production mode and omitted the development-only `@types/jsonwebtoken` and `@types/cookie-parser` needed by `tsc`.
+- [x] Updated Render and deployment-guide build commands to install dev dependencies for compilation, then prune them from the runtime installation.
+- [x] Reproduced the exact production-mode Render build sequence locally: `npm ci --include=dev`, `npm run build`, and `npm prune --omit=dev` all succeeded; verified Express and Zod remain installed and the declaration packages are pruned.
 - [x] Resolved the body-parser DoS advisory by updating the compatible Express 4 transitive dependency from 1.20.8 to 1.20.9.
 - [x] Upgraded Zod from 3.25.76 to patched 4.6.7; the backend TypeScript check passes without schema API migration errors.
 - [x] Bounded organization module selections to the six supported modules and added schema behavior tests for field requirements, boundaries, defaults, and error formatting.
