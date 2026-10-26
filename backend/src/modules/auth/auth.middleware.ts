@@ -4,7 +4,7 @@ import {
   AuthService,
   InvalidUserSessionError,
 } from "./auth.service";
-import { AuthUserPayload, UserRole } from "./auth.types";
+import { AuthUserPayload, UserRole, VerifiedAuthToken } from "./auth.types";
 
 // Augment Express Request interface with authenticated user property
 declare global {
@@ -48,7 +48,7 @@ export function authenticate(
     return;
   }
 
-  let payload: AuthUserPayload;
+  let payload: VerifiedAuthToken;
   try {
     payload = AuthService.verifyToken(token);
   } catch (error) {
@@ -59,7 +59,7 @@ export function authenticate(
     return;
   }
 
-  return AuthService.getCurrentUser(payload.userId)
+  return AuthService.getCurrentUser(payload.userId, payload.jti)
     .then((currentUser) => {
       req.user = currentUser;
       next();

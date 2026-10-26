@@ -29,6 +29,11 @@ export interface AuthUserPayload {
   plan?: "Starter" | "Professional" | "Enterprise";
 }
 
+export interface VerifiedAuthToken extends AuthUserPayload {
+  jti: string;
+  exp: number;
+}
+
 export interface LoginResponse {
   success: boolean;
   user: AuthUserPayload;

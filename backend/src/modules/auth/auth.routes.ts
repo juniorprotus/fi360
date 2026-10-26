@@ -1,7 +1,12 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import rateLimit from "express-rate-limit";
-import { AuthDatabaseUnavailableError, AuthService, InvalidUserSessionError } from "./auth.service";
+import {
+  AuthDatabaseUnavailableError,
+  AuthService,
+  AuthTransactionUnavailableError,
+  InvalidUserSessionError,
+} from "./auth.service";
 import { authenticate } from "./auth.middleware";
 import { isDbConnected } from "../../config/db";
 
@@ -141,43 +146,36 @@ router.post("/register", authLimiter, async (req: Request, res: Response): Promi
  * GET /api/auth/me
  * Session verification endpoint — rehydrates authenticated user profile on client refresh
  */
-router.get("/me", authenticate, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    if (!req.user?.userId) {
-      res.status(401).json({ success: false, message: "Unauthorized." });
-      return;
-    }
-
-    const userProfile = await AuthService.getCurrentUser(req.user.userId);
-    res.status(200).json({
-      success: true,
-      user: userProfile,
-    });
-  } catch (error) {
-    if (error instanceof AuthDatabaseUnavailableError || !isDbConnected()) {
-      res.status(503).json({
-        success: false,
-        message: "Authentication service is temporarily unavailable.",
-      });
-      return;
-    }
-    if (error instanceof InvalidUserSessionError) {
-      res.status(401).json({
-        success: false,
-        message: "Session has expired or was revoked.",
-      });
-      return;
-    }
-    next(error);
+router.get("/me", authenticate, (req: Request, res: Response): void => {
+  if (!req.user?.userId) {
+    res.status(401).json({ success: false, message: "Unauthorized." });
+    return;
   }
+  res.status(200).json({ success: true, user: req.user });
 });
 
 /**
  * POST /api/auth/logout
  * Clears the HttpOnly cookie and invalidates client session
  */
-router.post("/logout", (_req: Request, res: Response): void => {
+router.post("/logout", async (req: Request, res: Response): Promise<void> => {
   const isProd = process.env.NODE_ENV === "production";
+  const cookieToken: unknown = req.cookies?.fi360_token;
+  if (typeof cookieToken === "string" && cookieToken.length > 0) {
+    try {
+      await AuthService.revokeSession(cookieToken);
+    } catch (error) {
+      if (error instanceof AuthDatabaseUnavailableError || !isDbConnected()) {
+        res.status(503).json({
+          success: false,
+          message: "Authentication service is temporarily unavailable. Please retry logout.",
+        });
+        return;
+      }
+      res.status(500).json({ success: false, message: "Logout could not be completed. Please retry." });
+      return;
+    }
+  }
   res.clearCookie("fi360_token", {
     httpOnly: true,
     secure: isProd,
@@ -238,7 +236,11 @@ router.post("/reset-password", authLimiter, async (req: Request, res: Response):
     );
     res.status(200).json(result);
   } catch (error) {
-    if (error instanceof AuthDatabaseUnavailableError || !isDbConnected()) {
+    if (
+      error instanceof AuthDatabaseUnavailableError ||
+      error instanceof AuthTransactionUnavailableError ||
+      !isDbConnected()
+    ) {
       res.status(503).json({ success: false, message: "Authentication service is temporarily unavailable." });
       return;
     }

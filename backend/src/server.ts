@@ -21,6 +21,7 @@ import { userRoutes } from "./modules/auth/user.routes";
 import { authenticate } from "./modules/auth/auth.middleware";
 import { isTrustedOrigin, protectStateChangingRequests } from "./modules/auth/request-protection";
 import { requireDatabase, requireOrganization } from "./modules/auth/tenant.middleware";
+import { AuthSession } from "./modules/auth/auth-session.model";
 
 // Load .env file first
 dotenv.config();
@@ -142,6 +143,9 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 
 async function startServer(): Promise<void> {
   await connectDB();
+  if (isDbConnected()) {
+    await AuthSession.createIndexes();
+  }
   const server = app.listen(PORT, () => {
     console.log(`\n🚀 FI360 Backend running on port ${PORT}`);
     console.log(`🌍 Environment: ${config.NODE_ENV}`);

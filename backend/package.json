@@ -12,6 +12,8 @@
     "bootstrap:admin": "tsx src/scripts/bootstrap-admin.ts",
     "test:auth": "tsx src/scripts/test-auth.ts",
     "test:auth:memory": "tsx src/scripts/test-auth-memory.ts",
+    "test:auth:multi-instance:memory": "tsx src/scripts/test-auth-multi-instance-memory.ts",
+    "test:auth:transaction-failure:memory": "tsx src/scripts/test-auth-transaction-failure-memory.ts",
     "test:body-parser": "tsx src/scripts/test-body-parser.ts",
     "test:schemas": "tsx src/scripts/test-schemas.ts",
     "test:users": "tsx src/scripts/test-users.ts",

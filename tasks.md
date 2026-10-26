@@ -191,3 +191,16 @@
 - [x] Verified the two-tenant security suite (33/33), database-backed authentication suite (22/22, including compiled production startup and expired-cookie rejection), and user-management suite (28/28).
 - [x] Backend lint/build, frontend TypeScript/build, schema checks (20), body-parser regressions (4), `npm audit` (0 vulnerabilities), dependency tree, and `git diff --check` passed.
 - [x] Confirmed the final diff contains no production deployment, migration, or production-data operations.
+
+## 2026-10-26 Phase 2A Per-Session JWT Revocation
+- [x] Add persistent MongoDB-backed session identifiers, per-request revocation checks, and cookie logout revocation.
+- [x] Reject legacy tokens without session IDs and document the required one-time reauthentication.
+- [x] Verify independent sessions, replay rejection, restart persistence, session-store failures, and all existing auth/security regressions using isolated MongoDB.
+- [x] Verify the compiled production server starts against isolated MongoDB and returns HTTP 200 from `/api/health`.
+- [x] Final validation: backend lint and production build passed; authentication (30/30), tenant/security (33/33), user management (28/28), schema (20/20), and body-parser (4/4) suites passed; `git diff --check` passed.
+
+## 2026-10-26 Phase 2B Password-Reset Revocation
+- [x] Revoke all active sessions belonging to the reset user in the same MongoDB transaction as password update and reset-token consumption.
+- [x] Verify reset-token single use, cross-user isolation, and rejection of existing sessions on two concurrent backend processes.
+- [x] Verify that unsupported transaction topologies fail closed without changing the password, reset token, or session records.
+- [x] Run backend lint/build, authentication (32/32), cross-instance authentication (16 assertions), standalone transaction-failure (3 assertions), tenant/security (33/33), user management (28/28), schema (20/20), and body-parser (4/4) tests against isolated local databases; `git diff --check` passed.

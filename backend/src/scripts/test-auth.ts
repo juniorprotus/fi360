@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import crypto from "node:crypto";
 import http from "node:http";
 import jwt from "jsonwebtoken";
 import app from "../server";
@@ -7,6 +9,7 @@ import { User } from "../modules/auth/user.model";
 import { Organization } from "../modules/organization/organization.model";
 import { isDbConnected, connectDB, disconnectDB } from "../config/db";
 import { getEnv } from "../config/env";
+import { AuthSession } from "../modules/auth/auth-session.model";
 
 let server: http.Server | undefined;
 let baseUrl: string;
@@ -97,6 +100,26 @@ function cookieHasProductionAttributes(header: string | string[] | undefined): b
   );
 }
 
+function verifyRevokedSessionInNewProcess(cookie: string): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      process.execPath,
+      ["--import", "tsx", "src/scripts/test-session-replay.ts"],
+      {
+        cwd: process.cwd(),
+        env: {
+          ...process.env,
+          FI360_TEST_SESSION_COOKIE: cookie,
+        },
+        stdio: "inherit",
+        windowsHide: true,
+      }
+    );
+    child.once("error", reject);
+    child.once("close", (code) => resolve(code === 0));
+  });
+}
+
 async function runTests(): Promise<void> {
   if (process.env.NODE_ENV === "production" && !process.env.MONGODB_URI) {
     throw new Error("Production authentication tests require an isolated MongoDB URI.");
@@ -137,6 +160,21 @@ async function runTests(): Promise<void> {
     });
     check(forged.status === 401, "forged cookie is rejected");
 
+    const legacyToken = jwt.sign(
+      {
+        userId: "000000000000000000000000",
+        email: "legacy@example.test",
+        name: "Legacy Session",
+        role: "owner",
+      },
+      getEnv().JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+    const legacySession = await request("GET", "/api/auth/me", undefined, {
+      Cookie: `fi360_token=${legacyToken}`,
+    });
+    check(legacySession.status === 401, "validly signed legacy token without jti is rejected");
+
     const expiredToken = jwt.sign(
       {
         userId: "000000000000000000000000",
@@ -152,7 +190,7 @@ async function runTests(): Promise<void> {
     });
     check(expiredSession.status === 401, "expired cookie is rejected");
 
-    const unknownToken = AuthService.generateToken({
+    const unknownToken = await AuthService.issueToken({
       userId: "000000000000000000000000",
       email: "unknown@example.test",
       name: "Unknown User",
@@ -227,6 +265,13 @@ async function runTests(): Promise<void> {
         currentSession.body.user?.role === "owner",
       "session resolves the current database user"
     );
+    const registrationSession = await request("GET", "/api/auth/me", undefined, {
+      Cookie: registrationCookie,
+    });
+    check(
+      registrationSession.status === 200,
+      "a second login does not invalidate the independent registration session"
+    );
 
     const protectedRequest = await request("GET", "/api/vehicles", undefined, {
       Cookie: sessionCookie,
@@ -249,12 +294,62 @@ async function runTests(): Promise<void> {
         clearCookie === "fi360_token=",
       "logout clears the fi360_token cookie"
     );
-    const clearedCookieRequest = await request("GET", "/api/auth/me", undefined, {
-      Cookie: clearCookie,
+    const replayedLogoutSession = await request("GET", "/api/auth/me", undefined, {
+      Cookie: sessionCookie,
     });
-    check(clearedCookieRequest.status === 401, "cleared cookie is rejected");
+    check(replayedLogoutSession.status === 401, "replaying the unexpired logged-out JWT is rejected");
+    const retryLogout = await request("POST", "/api/auth/logout", undefined, {
+      Cookie: sessionCookie,
+    });
+    check(
+      retryLogout.status === 200 && cookieFromHeader(retryLogout.headers["set-cookie"]) === "fi360_token=",
+      "logout retry is safe for an already-revoked session"
+    );
+    const missingCookieLogout = await request("POST", "/api/auth/logout");
+    const malformedCookieLogout = await request("POST", "/api/auth/logout", undefined, {
+      Cookie: "fi360_token=malformed",
+    });
+    check(
+      missingCookieLogout.status === 200 &&
+        malformedCookieLogout.status === 200 &&
+        cookieFromHeader(malformedCookieLogout.headers["set-cookie"]) === "fi360_token=",
+      "logout safely clears missing and malformed cookies"
+    );
+    const remainingRegistrationSession = await request("GET", "/api/auth/me", undefined, {
+      Cookie: registrationCookie,
+    });
+    check(
+      remainingRegistrationSession.status === 200,
+      "logging out one session preserves another session for the same user"
+    );
+    check(
+      await verifyRevokedSessionInNewProcess(sessionCookie),
+      "revoked session remains rejected after a backend process restart"
+    );
+
+    const originalFindOne = AuthSession.findOne;
+    AuthSession.findOne = (() => {
+      throw new Error("Simulated session-store failure.");
+    }) as typeof AuthSession.findOne;
+    try {
+      const unavailableSessionStore = await request("GET", "/api/vehicles", undefined, {
+        Cookie: registrationCookie,
+      });
+      check(
+        unavailableSessionStore.status === 503,
+        "session-store failures fail closed on protected requests"
+      );
+    } finally {
+      AuthSession.findOne = originalFindOne;
+    }
 
     if (isDbConnected()) {
+      const sessionIndexes = await AuthSession.collection.indexes();
+      check(
+        sessionIndexes.some((index) => index.name === "auth_session_expiry_ttl" && index.expireAfterSeconds === 0) &&
+          sessionIndexes.some((index) => index.name === "auth_session_jti_unique" && index.unique === true),
+        "session ID uniqueness and expiry cleanup indexes are installed"
+      );
       const savedUser = await User.findOne({ email }).select("+password");
       check(
         !!savedUser &&
@@ -287,7 +382,7 @@ async function runTests(): Promise<void> {
       owner.role = "viewer";
       await owner.save();
       const changedRoleRequest = await request("GET", "/api/users", undefined, {
-        Cookie: sessionCookie,
+        Cookie: registrationCookie,
       });
       check(
         changedRoleRequest.status === 403,
@@ -298,7 +393,7 @@ async function runTests(): Promise<void> {
       owner.status = "suspended";
       await owner.save();
       const suspendedSession = await request("GET", "/api/auth/me", undefined, {
-        Cookie: sessionCookie,
+        Cookie: registrationCookie,
       });
       const suspendedLogin = await request("POST", "/api/auth/login", { email, password });
       check(
@@ -329,6 +424,49 @@ async function runTests(): Promise<void> {
       check(
         deletedLogin.status === 200 && deletedSession.status === 401,
         "deleted users cannot continue using previously issued sessions"
+      );
+
+      const preResetLogin = await request("POST", "/api/auth/login", { email, password });
+      const preResetCookie = cookieFromHeader(preResetLogin.headers["set-cookie"]);
+      const resetToken = crypto.randomBytes(32).toString("hex");
+      const resetTokenHash = crypto.createHash("sha256").update(resetToken).digest("hex");
+      const resetUser = await User.findById(owner._id).select(
+        "+passwordResetToken +passwordResetExpires"
+      );
+      if (!resetUser) throw new Error("Password-reset test user was not persisted.");
+      resetUser.passwordResetToken = resetTokenHash;
+      resetUser.passwordResetExpires = new Date(Date.now() + 60_000);
+      await resetUser.save();
+
+      const newPassword = "ResetPassword456!";
+      const resetResponse = await request("POST", "/api/auth/reset-password", {
+        token: resetToken,
+        newPassword,
+      });
+      const oldRegistrationSession = await request("GET", "/api/auth/me", undefined, {
+        Cookie: registrationCookie,
+      });
+      const oldLoginSession = await request("GET", "/api/auth/me", undefined, {
+        Cookie: preResetCookie,
+      });
+      check(
+        resetResponse.status === 200 &&
+          oldRegistrationSession.status === 401 &&
+          oldLoginSession.status === 401,
+        "successful password reset revokes every active session for that user"
+      );
+
+      const reusedResetToken = await request("POST", "/api/auth/reset-password", {
+        token: resetToken,
+        newPassword: "AnotherPassword789!",
+      });
+      const oldPasswordLogin = await request("POST", "/api/auth/login", { email, password });
+      const newPasswordLogin = await request("POST", "/api/auth/login", { email, password: newPassword });
+      check(
+        reusedResetToken.status === 400 &&
+          oldPasswordLogin.status === 401 &&
+          newPasswordLogin.status === 200,
+        "password reset consumes its token once and activates only the new password"
       );
 
       await disconnectDB();

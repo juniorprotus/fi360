@@ -27,7 +27,11 @@ Browser origins are matched exactly against `FRONTEND_URL`; only the two localho
 
 The marker header is not a secret or authentication credential. The protection depends on strict origin validation and browser preflight behavior for custom headers, in addition to rejecting form-compatible requests without the marker. A malicious origin test and missing-header test are included in the isolated security suite. A real browser test on the configured Vercel and Render domains remains necessary.
 
-Logout still clears the browser cookie but does not revoke a copied stateless JWT. Existing tokens remain valid until expiry or account suspension/deletion; immediate per-session revocation requires a separate session-version or token-revocation design.
+Each issued JWT includes a unique `jti` and has a corresponding MongoDB session record containing only the session identifier, user ID, expiry, and optional revocation time. Protected requests require a non-revoked, unexpired record and an active user; lookup failures fail closed. Logout revokes only the session in the presented cookie before clearing it. MongoDB TTL cleanup is configured for expired records, while every lookup independently enforces expiry and issuance prunes expired records.
+
+Tokens issued before session records and required `jti` claims were introduced are intentionally rejected. Existing users must sign in again after deployment to receive a registered session. This one-time sign-in migration avoids an untracked-token bypass; the migration itself does not revoke valid post-deployment sessions. A successful password reset separately revokes that user's active sessions.
+
+Password reset updates the password, consumes the one-time reset token, and revokes that user's active sessions in one MongoDB transaction. Password-reset completion therefore requires a transaction-capable MongoDB replica set or sharded cluster. If transactions are unavailable, the reset fails with HTTP 503 and no password, reset-token, or session change is committed; configure a supported topology before retrying. Other users' sessions are never included in the revocation query.
 
 ## Persistence and health checks
 

@@ -182,15 +182,15 @@ async function runTests(): Promise<void> {
   }
   const baseUrl = `http://127.0.0.1:${address.port}`;
 
-  const tokenFor = (user: {
+  const tokenFor = async (user: {
     _id: Types.ObjectId;
     email: string;
     name: string;
     role: "owner" | "admin" | "fleet_manager";
     organizationId?: Types.ObjectId;
     organizationName?: string;
-  }) =>
-    AuthService.generateToken({
+  }): Promise<string> =>
+    AuthService.issueToken({
       userId: user._id.toString(),
       email: user.email,
       name: user.name,
@@ -216,11 +216,11 @@ async function runTests(): Promise<void> {
     return { status: response.status, body: await response.json() };
   };
 
-  const ownerAToken = tokenFor(ownerA);
-  const adminAToken = tokenFor(adminA);
-  const managerAToken = tokenFor(managerA);
-  const ownerBToken = tokenFor(ownerB);
-  const noOrgAdminToken = tokenFor(noOrgAdmin);
+  const ownerAToken = await tokenFor(ownerA);
+  const adminAToken = await tokenFor(adminA);
+  const managerAToken = await tokenFor(managerA);
+  const ownerBToken = await tokenFor(ownerB);
+  const noOrgAdminToken = await tokenFor(noOrgAdmin);
 
   let passed = 0;
   const check = (name: string, assertion: () => void) => {

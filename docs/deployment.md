@@ -34,6 +34,10 @@ The service intentionally refuses to start in production unless `MONGODB_URI`, a
 
 Cookie-authenticated state-changing requests require the configured frontend `Origin` and the `X-FI360-Request: 1` header. The frontend client sets this header automatically. The production cookie remains `SameSite=None; Secure` for the cross-site Vercel/Render topology; actual browser cookie acceptance and blocking behavior must still be verified on the deployed domains.
 
+Authentication sessions are persisted in MongoDB. The backend creates the session-ID unique index and expiry TTL index before accepting requests; each protected request checks the session record and expiry explicitly, so TTL monitor delay does not extend a session. Logout revokes only the session in its cookie. Existing JWTs issued before session IDs were required are rejected and users must sign in again after deploying this change.
+
+Successful password resets atomically update the password, consume the reset token, and revoke the user's active sessions. This operation requires MongoDB transaction support (a replica set or sharded cluster, as provided by MongoDB Atlas). On an unsupported standalone topology, the reset fails closed with HTTP 503 and commits none of those changes; do not retry until the database topology supports transactions.
+
 `/api/health` is the database readiness endpoint used by Render and returns HTTP 503 when MongoDB is unavailable. `/api/live` reports HTTP-process liveness without implying database readiness.
 
 ### D. Get Your Render URL

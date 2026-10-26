@@ -1,10 +1,12 @@
 import jwt, { SignOptions } from "jsonwebtoken";
+import type { ClientSession } from "mongoose";
 import crypto from "crypto";
 import { getEnv } from "../../config/env";
 import { User, IUser } from "./user.model";
 import { Organization } from "../organization/organization.model";
-import { AuthUserPayload, UserRole } from "./auth.types";
+import { AuthUserPayload, UserRole, VerifiedAuthToken } from "./auth.types";
 import { isDbConnected } from "../../config/db";
+import { AuthSession } from "./auth-session.model";
 
 export class InvalidUserSessionError extends Error {
   constructor() {
@@ -17,6 +19,20 @@ export class AuthDatabaseUnavailableError extends Error {
   constructor() {
     super("Authentication database is unavailable.");
     this.name = "AuthDatabaseUnavailableError";
+  }
+}
+
+export class AuthTransactionUnavailableError extends Error {
+  constructor() {
+    super("Password reset requires MongoDB transaction support.");
+    this.name = "AuthTransactionUnavailableError";
+  }
+}
+
+export class InvalidPasswordResetTokenError extends Error {
+  constructor() {
+    super("Password reset token is invalid or has expired.");
+    this.name = "InvalidPasswordResetTokenError";
   }
 }
 
@@ -37,25 +53,68 @@ export class AuthService {
     return env.JWT_EXPIRES_IN;
   }
 
-  /**
-   * Generate signed JWT token
-   */
-  public static generateToken(payload: AuthUserPayload): string {
-    const secret = this.getJwtSecret();
-    const expiresIn = this.getJwtExpiresIn();
+  public static async issueToken(payload: AuthUserPayload): Promise<string> {
+    this.requireDatabase();
+    const jti = crypto.randomUUID();
     const options: SignOptions = {
-      expiresIn: expiresIn as unknown as SignOptions["expiresIn"],
+      expiresIn: this.getJwtExpiresIn() as SignOptions["expiresIn"],
+      jwtid: jti,
     };
-    return jwt.sign(payload, secret, options);
+    const token = jwt.sign(payload, this.getJwtSecret(), options);
+    const decoded = jwt.decode(token);
+    if (!decoded || typeof decoded === "string" || typeof decoded.exp !== "number") {
+      throw new Error("Issued authentication token is missing its expiry.");
+    }
+
+    try {
+      const now = new Date();
+      await AuthSession.deleteMany({ expiresAt: { $lte: now } });
+      await AuthSession.create({
+        jti,
+        userId: payload.userId,
+        expiresAt: new Date(decoded.exp * 1000),
+      });
+    } catch {
+      throw new AuthDatabaseUnavailableError();
+    }
+
+    return token;
   }
 
   /**
-   * Verify and decode a JWT token
+   * Verify the JWT and require the session identifier used by the session registry.
    */
-  public static verifyToken(token: string): AuthUserPayload {
-    const secret = this.getJwtSecret();
-    const decoded = jwt.verify(token, secret) as AuthUserPayload;
-    return decoded;
+  public static verifyToken(token: string): VerifiedAuthToken {
+    const decoded = jwt.verify(token, this.getJwtSecret());
+    if (
+      typeof decoded === "string" ||
+      typeof decoded.userId !== "string" ||
+      typeof decoded.jti !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(decoded.jti) ||
+      typeof decoded.exp !== "number"
+    ) {
+      throw new Error("Authentication token is missing required session claims.");
+    }
+    return decoded as VerifiedAuthToken;
+  }
+
+  public static async revokeSession(token: string): Promise<void> {
+    let payload: VerifiedAuthToken;
+    try {
+      payload = this.verifyToken(token);
+    } catch {
+      return;
+    }
+
+    this.requireDatabase();
+    try {
+      await AuthSession.updateOne(
+        { jti: payload.jti, userId: payload.userId, revokedAt: { $exists: false } },
+        { $set: { revokedAt: new Date() } }
+      );
+    } catch {
+      throw new AuthDatabaseUnavailableError();
+    }
   }
 
   /**
@@ -106,7 +165,7 @@ export class AuthService {
       organizationName: orgName,
     };
 
-    const token = this.generateToken(payload);
+    const token = await this.issueToken(payload);
     const redirectUrl = this.getDefaultRouteForRole(user.role);
 
     return { token, user: payload, redirectUrl };
@@ -162,16 +221,32 @@ export class AuthService {
       organizationName: user.organizationName,
     };
 
-    const token = this.generateToken(payload);
+    const token = await this.issueToken(payload);
     return { token, user: payload, redirectUrl: "/dashboard" };
   }
 
   /**
    * Get current authenticated user profile
    */
-  public static async getCurrentUser(userId: string): Promise<AuthUserPayload> {
+  public static async getCurrentUser(userId: string, jti: string): Promise<AuthUserPayload> {
     this.requireDatabase();
-    const user: IUser | null = await User.findById(userId);
+    let activeSession: unknown;
+    let user: IUser | null;
+    try {
+      activeSession = await AuthSession.findOne({
+        jti,
+        userId,
+        expiresAt: { $gt: new Date() },
+        revokedAt: { $exists: false },
+      }).select("_id").lean();
+      if (!activeSession) {
+        throw new InvalidUserSessionError();
+      }
+      user = await User.findById(userId);
+    } catch (error) {
+      if (error instanceof InvalidUserSessionError) throw error;
+      throw new AuthDatabaseUnavailableError();
+    }
 
     if (!user || user.status !== "active") {
       throw new InvalidUserSessionError();
@@ -234,20 +309,47 @@ export class AuthService {
     }
 
     const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+    let session: ClientSession | undefined;
+    try {
+      session = await User.db.startSession();
+      const transactionSession = session;
+      await transactionSession.withTransaction(async () => {
+        const user = await User.findOne({
+          passwordResetToken: hashedToken,
+          passwordResetExpires: { $gt: new Date() },
+        })
+          .select("+passwordResetToken +passwordResetExpires")
+          .session(transactionSession);
 
-    const user = await User.findOne({
-      passwordResetToken: hashedToken,
-      passwordResetExpires: { $gt: new Date() },
-    }).select("+passwordResetToken +passwordResetExpires");
+        if (!user) {
+          throw new InvalidPasswordResetTokenError();
+        }
 
-    if (!user) {
-      throw new Error("Password reset token is invalid or has expired.");
+        user.password = newPassword;
+        user.passwordResetToken = undefined;
+        user.passwordResetExpires = undefined;
+        await user.save({ session: transactionSession });
+
+        await AuthSession.updateMany(
+          {
+            userId: user._id,
+            expiresAt: { $gt: new Date() },
+            revokedAt: { $exists: false },
+          },
+          { $set: { revokedAt: new Date() } },
+          { session: transactionSession }
+        );
+      });
+    } catch (error) {
+      if (
+        error instanceof InvalidPasswordResetTokenError ||
+        error instanceof AuthDatabaseUnavailableError ||
+        error instanceof AuthTransactionUnavailableError
+      ) throw error;
+      throw new AuthTransactionUnavailableError();
+    } finally {
+      await session?.endSession();
     }
-
-    user.password = newPassword;
-    user.passwordResetToken = undefined;
-    user.passwordResetExpires = undefined;
-    await user.save();
 
     return {
       success: true,

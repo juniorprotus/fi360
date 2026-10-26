@@ -82,14 +82,14 @@ function check(condition: boolean, name: string): void {
   }
 }
 
-function sessionCookie(user: {
+async function sessionCookie(user: {
   _id: mongoose.Types.ObjectId;
   email: string;
   name: string;
   role: "owner" | "viewer" | "driver" | "dispatcher";
   organizationId?: mongoose.Types.ObjectId;
-}): string {
-  return `fi360_token=${AuthService.generateToken({
+}): Promise<string> {
+  return `fi360_token=${await AuthService.issueToken({
     userId: user._id.toString(),
     email: user.email,
     name: user.name,
@@ -301,7 +301,7 @@ async function runTests(): Promise<void> {
       status: "dispatched",
     });
 
-    const cookieA = sessionCookie(ownerA);
+    const cookieA = await sessionCookie(ownerA);
     const ownerHeaders = { Cookie: cookieA };
 
     const organizationList = await request("GET", "/api/organizations", undefined, ownerHeaders);
@@ -523,7 +523,7 @@ async function runTests(): Promise<void> {
     check(
       (await request("POST", "/api/inspections", {
         vehiclePlate: vehicleA.plateNumber,
-      }, { Cookie: sessionCookie(driverA) })).status === 403,
+      }, { Cookie: await sessionCookie(driverA) })).status === 403,
       "driver role cannot forge general inspection submissions"
     );
 
@@ -551,7 +551,7 @@ async function runTests(): Promise<void> {
       "trip writes reject foreign references and ownership updates"
     );
 
-    const viewerHeaders = { Cookie: sessionCookie(viewerA) };
+    const viewerHeaders = { Cookie: await sessionCookie(viewerA) };
     check(
       (await request("POST", "/api/vehicles", {
         vin: `VIN-VIEW-${suffix.slice(-16)}`,
@@ -565,7 +565,7 @@ async function runTests(): Promise<void> {
     );
     check(
       (await request("GET", "/api/vehicles", undefined, {
-        Cookie: sessionCookie(noTenantUser),
+        Cookie: await sessionCookie(noTenantUser),
       })).status === 403,
       "authenticated users without tenant membership fail closed"
     );

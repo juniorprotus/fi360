@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createServer } from "node:net";
 import { access } from "node:fs/promises";
 import { join } from "node:path";
-import { MongoMemoryServer } from "mongodb-memory-server";
+import { MongoMemoryReplSet } from "mongodb-memory-server";
 
 const HOST = "127.0.0.1";
 const DATABASE_NAME = "fi360_auth_test";
@@ -111,13 +111,15 @@ async function stopChild(child: ChildProcess): Promise<void> {
 
 function validateGeneratedUri(connectionString: string): void {
   const parsed = new URL(connectionString);
+  const queryKeys = [...parsed.searchParams.keys()];
   if (
     parsed.protocol !== "mongodb:" ||
     parsed.hostname !== HOST ||
     parsed.username !== "" ||
     parsed.password !== "" ||
     parsed.pathname !== `/${DATABASE_NAME}` ||
-    parsed.search !== ""
+    queryKeys.some((key) => key !== "replicaSet") ||
+    !parsed.searchParams.has("replicaSet")
   ) {
     throw new Error("Temporary MongoDB did not provide the expected isolated local database URI.");
   }
@@ -130,16 +132,16 @@ async function runTests(): Promise<void> {
 
   const previousDownloadDirectory = process.env.MONGOMS_DOWNLOAD_DIR;
   const previousSystemBinary = process.env.MONGOMS_SYSTEM_BINARY;
-  let mongo: MongoMemoryServer | undefined;
+  let mongo: MongoMemoryReplSet | undefined;
   let productionServer: ChildProcess | undefined;
 
   delete process.env.MONGOMS_DOWNLOAD_DIR;
   delete process.env.MONGOMS_SYSTEM_BINARY;
 
   try {
-    mongo = await MongoMemoryServer.create({
+    mongo = await MongoMemoryReplSet.create({
       binary: { version: MONGODB_VERSION },
-      instance: { dbName: DATABASE_NAME, ip: HOST },
+      replSet: { count: 1, storageEngine: "wiredTiger", ip: HOST },
     });
 
     const connectionString = mongo.getUri(DATABASE_NAME);
