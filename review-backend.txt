@@ -1,0 +1,257 @@
+﻿diff --git a/backend/src/modules/drivers/driver.model.ts b/backend/src/modules/drivers/driver.model.ts
+index 42c759e..9f71977 100644
+--- a/backend/src/modules/drivers/driver.model.ts
++++ b/backend/src/modules/drivers/driver.model.ts
+@@ -11,6 +11,7 @@ export interface IDriver {
+   status: "active" | "on_leave" | "suspended" | "off_duty";
+   performanceScore: number;
+   assignedVehicleId?: Types.ObjectId | string;
++  linkedUserId?: Types.ObjectId | string;
+   createdAt?: Date;
+   updatedAt?: Date;
+ }
+@@ -35,8 +36,14 @@ const DriverSchema = new Schema<IDriver>(
+     },
+     performanceScore: { type: Number, default: 90, min: 0, max: 100 },
+     assignedVehicleId: { type: Schema.Types.ObjectId, ref: "Vehicle" },
++    linkedUserId: { type: Schema.Types.ObjectId, ref: "User" },
+   },
+   { timestamps: true }
+ );
+ 
++DriverSchema.index(
++  { linkedUserId: 1 },
++  { unique: true, sparse: true, name: "driver_linked_user_unique" }
++);
++
+ export const Driver = mongoose.models.Driver || mongoose.model<IDriver>("Driver", DriverSchema);
+diff --git a/backend/src/modules/drivers/driver.routes.ts b/backend/src/modules/drivers/driver.routes.ts
+index d541f98..379da87 100644
+--- a/backend/src/modules/drivers/driver.routes.ts
++++ b/backend/src/modules/drivers/driver.routes.ts
+@@ -1,8 +1,11 @@
+ import { Router, Request, Response } from "express";
+ import mongoose from "mongoose";
++import { z } from "zod";
+ import { Driver } from "./driver.model";
+ import { DriverCreateSchema, DriverUpdateSchema } from "./driver.schema";
+ import { Vehicle } from "../vehicle/vehicle.model";
++import { User } from "../auth/user.model";
++import { Inspection } from "../inspections/inspection.model";
+ import { authorize } from "../auth/authorization.middleware";
+ import { requireDatabase, requireOrganization } from "../auth/tenant.middleware";
+ 
+@@ -11,10 +14,169 @@ router.use(requireDatabase, requireOrganization);
+ 
+ const organizationId = (req: Request): string => req.user!.organizationId!;
+ 
++async function validateLinkedUser(
++  linkedUserId: string | null | undefined,
++  orgId: string,
++  driverId?: string
++): Promise<boolean> {
++  if (!linkedUserId) return true;
++  if (!mongoose.isValidObjectId(linkedUserId)) return false;
++  const user = await User.findOne({
++    _id: linkedUserId,
++    organizationId: orgId,
++    role: "driver",
++    status: "active",
++  }).select("_id").lean();
++  if (!user) return false;
++  const existingLink = await Driver.findOne({
++    linkedUserId,
++    organizationId: orgId,
++    ...(driverId ? { _id: { $ne: driverId } } : {}),
++  }).select("_id").lean();
++  return !existingLink;
++}
++
++const DriverInspectionSchema = z.object({
++  reportNumber: z.string().trim().min(1).max(100).optional(),
++  type: z.string().trim().min(1).max(100).default("Pre-Trip Walkaround"),
++  outcome: z.enum(["passed", "failed", "requires_attention"]).default("passed"),
++  defectsSummary: z.string().trim().max(1000).default("Zero critical defects noted."),
++  date: z.string().min(1).max(40).optional(),
++}).strict();
++
++router.get("/me", async (req: Request, res: Response): Promise<void> => {
++  if (req.user?.role !== "driver") {
++    res.status(403).json({ success: false, message: "Driver portal access is restricted to driver accounts." });
++    return;
++  }
++  const driver = await Driver.findOne({
++    linkedUserId: req.user.userId,
++    organizationId: organizationId(req),
++    status: "active",
++  }).lean();
++  if (!driver) {
++    res.status(404).json({ success: false, message: "No active driver profile is linked to this account." });
++    return;
++  }
++
++  const vehicle = driver.assignedVehicleId
++    ? await Vehicle.findOne({
++        _id: driver.assignedVehicleId,
++        organizationId: organizationId(req),
++      })
++        .select("plateNumber make model year type status telematicsData.odometerKm")
++        .lean()
++    : null;
++  res.json({
++    success: true,
++    data: {
++      driver: {
++        fullName: driver.fullName,
++        licenseNumber: driver.licenseNumber,
++        licenseClass: driver.licenseClass,
++        licenseExpiry: driver.licenseExpiry,
++        phone: driver.phone,
++        status: driver.status,
++      },
++      vehicle: vehicle
++        ? {
++            plateNumber: vehicle.plateNumber,
++            make: vehicle.make,
++            model: vehicle.model,
++            year: vehicle.year,
++            type: vehicle.type,
++            status: vehicle.status,
++            odometerKm: vehicle.telematicsData?.odometerKm ?? null,
++          }
++        : null,
++    },
++  });
++});
++
++router.post("/me/inspections", async (req: Request, res: Response): Promise<void> => {
++  if (req.user?.role !== "driver") {
++    res.status(403).json({ success: false, message: "Driver portal access is restricted to driver accounts." });
++    return;
++  }
++  const parsed = DriverInspectionSchema.safeParse(req.body);
++  if (!parsed.success) {
++    res.status(400).json({
++      success: false,
++      message: parsed.error.issues[0]?.message || "Invalid inspection data.",
++    });
++    return;
++  }
++  const driver = await Driver.findOne({
++    linkedUserId: req.user.userId,
++    organizationId: organizationId(req),
++    status: "active",
++  }).select("assignedVehicleId").lean();
++  if (!driver) {
++    res.status(404).json({ success: false, message: "No active driver profile is linked to this account." });
++    return;
++  }
++  if (!driver.assignedVehicleId) {
++    res.status(409).json({ success: false, message: "No vehicle is assigned to this driver." });
++    return;
++  }
++  const vehicle = await Vehicle.findOne({
++    _id: driver.assignedVehicleId,
++    organizationId: organizationId(req),
++  }).select("plateNumber").lean();
++  if (!vehicle) {
++    res.status(404).json({ success: false, message: "The assigned vehicle is unavailable." });
++    return;
++  }
++  const inspection = await Inspection.create({
++    ...parsed.data,
++    reportNumber: parsed.data.reportNumber || `EDVIR-${Date.now()}`,
++    vehiclePlate: vehicle.plateNumber,
++    inspectorName: req.user.name,
++    date: parsed.data.date || new Date().toISOString(),
++    organizationId: organizationId(req),
++  });
++  res.status(201).json({ success: true, data: inspection });
++});
++
++router.get("/available-accounts", authorize("drivers", "read"), async (req: Request, res: Response): Promise<void> => {
++  const linked = await Driver.find({
++    organizationId: organizationId(req),
++    linkedUserId: { $exists: true },
++  }).distinct("linkedUserId");
++  const accounts = await User.find({
++    organizationId: organizationId(req),
++    role: "driver",
++    status: "active",
++    _id: { $nin: linked },
++  }).select("_id name email").sort({ name: 1 }).lean();
++  res.json({
++    success: true,
++    data: accounts.map((account) => ({
++      id: account._id.toString(),
++      name: account.name,
++      email: account.email,
++    })),
++  });
++});
++
+ router.get("/", authorize("drivers", "read"), async (req: Request, res: Response): Promise<void> => {
+   try {
+     const drivers = await Driver.find({ organizationId: organizationId(req) }).sort({ fullName: 1 }).lean();
+-    res.json({ success: true, count: drivers.length, data: drivers });
++    const vehicles = await Vehicle.find({
++      _id: { $in: drivers.flatMap((driver) => driver.assignedVehicleId ? [driver.assignedVehicleId] : []) },
++      organizationId: organizationId(req),
++    }).select("_id plateNumber").lean();
++    const plateById = new Map(vehicles.map((vehicle) => [vehicle._id.toString(), vehicle.plateNumber]));
++    res.json({
++      success: true,
++      count: drivers.length,
++      data: drivers.map((driver) => ({
++        ...driver,
++        assignedVehicle: driver.assignedVehicleId
++          ? plateById.get(driver.assignedVehicleId.toString())
++          : undefined,
++      })),
++    });
+   } catch {
+     res.status(500).json({ success: false, message: "Failed to fetch drivers." });
+   }
+@@ -61,6 +223,10 @@ router.post("/", authorize("drivers", "create"), async (req: Request, res: Respo
+         return;
+       }
+     }
++    if (!(await validateLinkedUser(parsed.data.linkedUserId, organizationId(req)))) {
++      res.status(400).json({ success: false, message: "Linked account must be an active driver in your organization." });
++      return;
++    }
+     const created = await Driver.create({ ...parsed.data, organizationId: organizationId(req) });
+     res.status(201).json({ success: true, data: created });
+   } catch {
+@@ -93,9 +259,18 @@ router.patch("/:id", authorize("drivers", "update"), async (req: Request, res: R
+         return;
+       }
+     }
++    if (!(await validateLinkedUser(parsed.data.linkedUserId, organizationId(req), req.params.id))) {
++      res.status(400).json({ success: false, message: "Linked account must be an active driver in your organization." });
++      return;
++    }
++    const update = { ...parsed.data };
++    if (update.linkedUserId === null) delete update.linkedUserId;
+     const updated = await Driver.findOneAndUpdate(
+       { _id: req.params.id, organizationId: organizationId(req) },
+-      { $set: parsed.data },
++      {
++        $set: update,
++        ...(parsed.data.linkedUserId === null ? { $unset: { linkedUserId: 1 } } : {}),
++      },
+       { new: true, runValidators: true }
+     ).lean();
+     if (!updated) {
+diff --git a/backend/src/modules/drivers/driver.schema.ts b/backend/src/modules/drivers/driver.schema.ts
+index a2182e8..7d4b4aa 100644
+--- a/backend/src/modules/drivers/driver.schema.ts
++++ b/backend/src/modules/drivers/driver.schema.ts
+@@ -11,6 +11,7 @@ export const DriverCreateSchema = z.object({
+   status: DriverStatusEnum.default("active"),
+   performanceScore: z.number().min(0).max(100).default(90),
+   assignedVehicleId: z.string().optional(),
++  linkedUserId: z.string().nullable().optional(),
+ }).strict();
+ 
+ export const DriverUpdateSchema = DriverCreateSchema.partial().strict();

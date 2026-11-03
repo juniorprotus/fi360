@@ -1,0 +1,32 @@
+﻿diff --git a/frontend/src/components/layout/ProtectedRoute.tsx b/frontend/src/components/layout/ProtectedRoute.tsx
+index ccc2a49..fb63adb 100644
+--- a/frontend/src/components/layout/ProtectedRoute.tsx
++++ b/frontend/src/components/layout/ProtectedRoute.tsx
+@@ -15,7 +15,12 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
+     if (!isLoading) {
+       if (!isAuthenticated) {
+         router.replace("/login");
+-      } else if (user && !isRouteAllowedForRole(user.role, pathname)) {
++      } else if (
++        user &&
++        ((pathname === "/dashboard/driver" || pathname.startsWith("/dashboard/driver/"))
++          ? user.role !== "driver"
++          : !isRouteAllowedForRole(user.role, pathname))
++      ) {
+         // Redirect to user's assigned role landing page if accessing unauthorized module
+         const fallbackRoute = getDefaultRouteForRole(user.role);
+         router.replace(fallbackRoute);
+diff --git a/frontend/src/components/layout/Sidebar.tsx b/frontend/src/components/layout/Sidebar.tsx
+index d4586b1..c136f02 100644
+--- a/frontend/src/components/layout/Sidebar.tsx
++++ b/frontend/src/components/layout/Sidebar.tsx
+@@ -88,6 +88,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
+     .map((section) => ({
+       ...section,
+       items: section.items.filter((item) => {
++        if (item.href === "/dashboard/driver" && userRole !== "driver") {
++          return false;
++        }
+         if (
+           item.href === "/dashboard/admin/users" &&
+           userRole !== "owner" &&
