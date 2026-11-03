@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import http from "node:http";
+import mongoose from "mongoose";
 import app from "../server";
 import { connectDB, disconnectDB } from "../config/db";
 import { AuthService } from "../modules/auth/auth.service";
@@ -386,6 +387,16 @@ async function run(): Promise<void> {
       organizationName: otherOrganization.user.organizationName,
       status: "active",
     });
+    const foreignVehicle = await Vehicle.create({
+      vin: "PORTALFOREIGNVIN001",
+      plateNumber: `PORTALX${Date.now().toString().slice(-5)}`,
+      make: "DAF",
+      model: "XF",
+      year: 2020,
+      type: "truck",
+      status: "active",
+      organizationId: otherOrganization.user.organizationId,
+    });
     const foreignLink = await request(baseUrl, "POST", "/api/drivers", ownerCookie, {
       fullName: "Cross Tenant Link Attempt",
       licenseNumber: `DL-CROSS-${Date.now()}`,
@@ -406,6 +417,111 @@ async function run(): Promise<void> {
         !availableIds.includes(driverAUser._id.toString()) &&
         !availableIds.includes(foreignDriver._id.toString()),
       "account linking options include only active, unlinked driver accounts in the current organization"
+    );
+
+    const prelinkedDriver = await request(
+      baseUrl,
+      "PATCH",
+      `/api/drivers/${linkableDriver._id.toString()}`,
+      managerCookie,
+      { linkedUserId: linkableDriverUser._id.toString() }
+    );
+    assertPass(prelinkedDriver.status === 200, "authorized manager can link the existing driver account before assignment changes");
+
+    const unauthorizedAssignment = await request(
+      baseUrl,
+      "PATCH",
+      `/api/drivers/${linkableDriver._id.toString()}`,
+      driverACookie,
+      { assignedVehicleId: vehicleA._id.toString() }
+    );
+    assertPass(unauthorizedAssignment.status === 403, "driver cannot change a driver vehicle assignment");
+
+    const assignedToVehicleA = await request(
+      baseUrl,
+      "PATCH",
+      `/api/drivers/${linkableDriver._id.toString()}`,
+      managerCookie,
+      { assignedVehicleId: vehicleA._id.toString() }
+    );
+    const fetchedAfterAssign = await request(
+      baseUrl,
+      "GET",
+      `/api/drivers/${linkableDriver._id.toString()}`,
+      ownerCookie
+    );
+    const rosterAfterAssign = await request(baseUrl, "GET", "/api/drivers", ownerCookie);
+    const rosterDriverAfterAssign = rosterAfterAssign.body.data.find(
+      (driver: { _id: string }) => driver._id === linkableDriver._id.toString()
+    );
+    assertPass(
+      assignedToVehicleA.status === 200 &&
+        fetchedAfterAssign.body.data.assignedVehicleId?.toString() === vehicleA._id.toString() &&
+        fetchedAfterAssign.body.data.linkedUserId?.toString() === linkableDriverUser._id.toString() &&
+        rosterDriverAfterAssign?.assignedVehicle === vehicleA.plateNumber,
+      "authorized manager assigns an existing driver without clearing its linked account; refreshed detail and roster show persisted vehicle"
+    );
+
+    const changedToVehicleB = await request(
+      baseUrl,
+      "PATCH",
+      `/api/drivers/${linkableDriver._id.toString()}`,
+      managerCookie,
+      { assignedVehicleId: vehicleB._id.toString() }
+    );
+    const fetchedAfterChange = await request(
+      baseUrl,
+      "GET",
+      `/api/drivers/${linkableDriver._id.toString()}`,
+      ownerCookie
+    );
+    assertPass(
+      changedToVehicleB.status === 200 &&
+        fetchedAfterChange.body.data.assignedVehicleId?.toString() === vehicleB._id.toString(),
+      "authorized manager can change an existing assignment and the new vehicle persists"
+    );
+
+    const foreignVehicleAssignment = await request(
+      baseUrl,
+      "PATCH",
+      `/api/drivers/${linkableDriver._id.toString()}`,
+      managerCookie,
+      { assignedVehicleId: foreignVehicle._id.toString() }
+    );
+    const nonexistentVehicleAssignment = await request(
+      baseUrl,
+      "PATCH",
+      `/api/drivers/${linkableDriver._id.toString()}`,
+      managerCookie,
+      { assignedVehicleId: new mongoose.Types.ObjectId().toString() }
+    );
+    assertPass(
+      foreignVehicleAssignment.status === 400 && nonexistentVehicleAssignment.status === 400,
+      "assignment rejects vehicles outside the organization and nonexistent vehicle IDs"
+    );
+
+    const removedVehicleAssignment = await request(
+      baseUrl,
+      "PATCH",
+      `/api/drivers/${linkableDriver._id.toString()}`,
+      managerCookie,
+      { assignedVehicleId: null }
+    );
+    const fetchedAfterRemoval = await request(
+      baseUrl,
+      "GET",
+      `/api/drivers/${linkableDriver._id.toString()}`,
+      ownerCookie
+    );
+    const rosterAfterRemoval = await request(baseUrl, "GET", "/api/drivers", ownerCookie);
+    const rosterDriverAfterRemoval = rosterAfterRemoval.body.data.find(
+      (driver: { _id: string }) => driver._id === linkableDriver._id.toString()
+    );
+    assertPass(
+      removedVehicleAssignment.status === 200 &&
+        !fetchedAfterRemoval.body.data.assignedVehicleId &&
+        rosterDriverAfterRemoval?.assignedVehicle === undefined,
+      "authorized manager can remove an assignment and refreshed detail and roster show unassigned"
     );
 
     const linkedDriverResponse = await request(

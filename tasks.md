@@ -219,3 +219,11 @@
 - [x] Removed the ineffective frontend API environment value from `vercel.json` and added a shared API base resolver with the known production Render URL as a fallback; `NEXT_PUBLIC_API_URL` remains an override.
 - [x] Documented the production and development defaults and optional Vercel overrides.
 - [x] Reproduced the missing-variable prerender failure and verified the frontend production build with and without `NEXT_PUBLIC_API_URL`.
+
+## Updating Vehicle Assignments from Driver Profiles
+- [x] Added an Assigned Vehicle selector to existing driver profiles for owner, admin, and fleet-manager roles, using live organization-scoped vehicle records and IDs.
+- [x] Reused the existing driver PATCH endpoint and API contract; explicit `null` now safely unsets an assignment, while invalid, nonexistent, and cross-organization vehicle IDs remain rejected.
+- [x] Preserved linked account data during assignment changes and immediately updated the selected profile and driver roster from the persisted response.
+- [x] Expanded the isolated driver portal suite to verify assignment, reassignment, unassignment, persistence in driver detail/roster responses, unauthorized rejection, tenant validation, and linked-account preservation.
+- [x] Backend lint/build, frontend TypeScript check/build, and isolated driver portal integration tests passed.
+- [ ] Frontend lint remains failing on existing issues: full run reports 26 errors and 64 warnings; focused driver-page run reports one pre-existing `react-hooks/set-state-in-effect` error and seven unused-import warnings.

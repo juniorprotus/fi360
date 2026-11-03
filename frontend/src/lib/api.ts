@@ -810,6 +810,16 @@ export async function updateDriverAccountLink(
   });
 }
 
+export async function updateDriverVehicleAssignment(
+  driverId: string,
+  assignedVehicleId: string | null
+): Promise<DriverItem> {
+  return requestDriverPortal<DriverItem>(`/drivers/${encodeURIComponent(driverId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ assignedVehicleId }),
+  });
+}
+
 export async function fetchDrivers(): Promise<DriverItem[]> {
   const res = await authFetch(`${API_BASE}/api/drivers`, {
     cache: "no-store",

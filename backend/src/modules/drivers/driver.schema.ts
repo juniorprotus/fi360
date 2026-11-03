@@ -14,7 +14,9 @@ export const DriverCreateSchema = z.object({
   linkedUserId: z.string().nullable().optional(),
 }).strict();
 
-export const DriverUpdateSchema = DriverCreateSchema.partial().strict();
+export const DriverUpdateSchema = DriverCreateSchema.partial()
+  .extend({ assignedVehicleId: z.string().min(1).nullable().optional() })
+  .strict();
 
 export type DriverCreateInput = z.infer<typeof DriverCreateSchema>;
 export type DriverUpdateInput = z.infer<typeof DriverUpdateSchema>;

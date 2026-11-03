@@ -17,17 +17,22 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/lib/auth/AuthContext";
 import {
   fetchDrivers,
   createDriver,
   fetchVehicles,
   fetchUnlinkedDriverAccounts,
   updateDriverAccountLink,
+  updateDriverVehicleAssignment,
   DriverItem,
   DriverAccountOption,
 } from "@/lib/api";
 
 export default function DriversPage() {
+  const { user } = useAuth();
+  const canUpdateDrivers =
+    user?.role === "owner" || user?.role === "admin" || user?.role === "fleet_manager";
   const [drivers, setDrivers] = useState<DriverItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -39,8 +44,12 @@ export default function DriversPage() {
   const [selectedDriver, setSelectedDriver] = useState<DriverItem | null>(null);
   const [driverAccounts, setDriverAccounts] = useState<DriverAccountOption[]>([]);
   const [vehicleOptions, setVehicleOptions] = useState<{ id: string; label: string }[]>([]);
+  const [vehiclesLoading, setVehiclesLoading] = useState(true);
+  const [vehicleLoadError, setVehicleLoadError] = useState("");
   const [linkingAccount, setLinkingAccount] = useState(false);
   const [selectedLinkedUserId, setSelectedLinkedUserId] = useState("");
+  const [selectedAssignedVehicleId, setSelectedAssignedVehicleId] = useState("");
+  const [savingVehicleAssignment, setSavingVehicleAssignment] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState<DriverItem>({
@@ -58,27 +67,43 @@ export default function DriversPage() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setVehiclesLoading(true);
+    setVehicleLoadError("");
     try {
       const data = await fetchDrivers();
       setDrivers(data);
-      const [accounts, vehicles] = await Promise.all([
+      const [accountsResult, vehiclesResult] = await Promise.allSettled([
         fetchUnlinkedDriverAccounts(),
         fetchVehicles(),
       ]);
-      setDriverAccounts(accounts);
-      if (vehicles.isFallback) {
-        setVehicleOptions([]);
-        toast.error("Live vehicle data is unavailable; assignments are disabled.");
+      if (accountsResult.status === "fulfilled") {
+        setDriverAccounts(accountsResult.value);
       } else {
-        setVehicleOptions(vehicles.data.map((vehicle) => ({
-          id: vehicle._id,
-          label: `${vehicle.plateNumber} - ${vehicle.make} ${vehicle.model}`,
-        })));
+        toast.error("Failed to load available driver accounts");
+      }
+      if (vehiclesResult.status === "rejected") {
+        setVehicleOptions([]);
+        setVehicleLoadError("Vehicle options could not be loaded. Try syncing before changing assignments.");
+      } else if (vehiclesResult.value.isFallback) {
+        setVehicleOptions([]);
+        setVehicleLoadError("Live vehicle data is unavailable. Try syncing before changing assignments.");
+      } else {
+        setVehicleOptions(
+          vehiclesResult.value.data
+            .map((vehicle) => ({
+              id: vehicle._id || vehicle.id || "",
+              label: `${vehicle.plateNumber} - ${vehicle.make} ${vehicle.model}`,
+            }))
+            .filter((vehicle) => vehicle.id)
+        );
       }
     } catch {
+      setVehicleOptions([]);
+      setVehicleLoadError("Organization data could not be loaded. Sync and retry before changing assignments.");
       toast.error("Failed to load driver roster");
     } finally {
       setLoading(false);
+      setVehiclesLoading(false);
     }
   }, []);
 
@@ -120,6 +145,48 @@ export default function DriversPage() {
       toast.error(error instanceof Error ? error.message : "Failed to update driver account link");
     } finally {
       setLinkingAccount(false);
+    }
+  };
+
+  const handleSaveVehicleAssignment = async () => {
+    if (!selectedDriver?._id) return;
+    const requestedVehicleId = selectedAssignedVehicleId || null;
+    const currentVehicleId = selectedDriver.assignedVehicleId || "";
+    if ((requestedVehicleId || "") === currentVehicleId) return;
+
+    setSavingVehicleAssignment(true);
+    try {
+      const updated = await updateDriverVehicleAssignment(
+        selectedDriver._id,
+        requestedVehicleId
+      );
+      const persistedVehicleId = updated.assignedVehicleId || "";
+      if (persistedVehicleId !== (requestedVehicleId || "")) {
+        throw new Error("The server response did not confirm the requested vehicle assignment.");
+      }
+      const assignedVehicle =
+        vehicleOptions.find((vehicle) => vehicle.id === persistedVehicleId)?.label ||
+        "Unassigned";
+      const persistedDriver: DriverItem = {
+        ...selectedDriver,
+        ...updated,
+        assignedVehicleId: persistedVehicleId || undefined,
+        assignedVehicle,
+      };
+      setSelectedDriver(persistedDriver);
+      setSelectedAssignedVehicleId(persistedVehicleId);
+      setDrivers((current) =>
+        current.map((driver) =>
+          (driver._id || driver.id) === selectedDriver._id ? persistedDriver : driver
+        )
+      );
+      toast.success(
+        requestedVehicleId ? "Driver vehicle assignment updated" : "Vehicle assignment removed"
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update vehicle assignment");
+    } finally {
+      setSavingVehicleAssignment(false);
     }
   };
 
@@ -327,6 +394,7 @@ export default function DriversPage() {
                         onClick={() => {
                           setSelectedDriver(d);
                           setSelectedLinkedUserId(d.linkedUserId || "");
+                          setSelectedAssignedVehicleId(d.assignedVehicleId || "");
                         }}
                         className="rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 dark:border-slate-700 dark:text-blue-400 dark:hover:bg-slate-800"
                       >
@@ -344,7 +412,7 @@ export default function DriversPage() {
       {/* Driver Profile Modal */}
       {selectedDriver && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-sm">
@@ -397,6 +465,70 @@ export default function DriversPage() {
                 <span className="capitalize font-semibold text-emerald-600">{selectedDriver.status || "Active Duty"}</span>
               </div>
             </div>
+
+            {canUpdateDrivers && (
+              <div className="border-t border-slate-100 py-4 dark:border-slate-800">
+                <label
+                  htmlFor="driver-assigned-vehicle"
+                  className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300"
+                >
+                  Assigned Vehicle
+                </label>
+                <p className="mb-2 text-[11px] text-slate-500 dark:text-slate-400">
+                  Currently assigned: {selectedDriver.assignedVehicle || "Unassigned"}
+                </p>
+                {vehiclesLoading ? (
+                  <div className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Loading organization vehicles...
+                  </div>
+                ) : vehicleLoadError ? (
+                  <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+                    {vehicleLoadError}
+                  </p>
+                ) : (
+                  <>
+                    <select
+                      id="driver-assigned-vehicle"
+                      value={selectedAssignedVehicleId}
+                      onChange={(event) => setSelectedAssignedVehicleId(event.target.value)}
+                      disabled={savingVehicleAssignment}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 disabled:opacity-60"
+                    >
+                      <option value="">No vehicle assigned</option>
+                      {selectedDriver.assignedVehicleId &&
+                        !vehicleOptions.some((vehicle) => vehicle.id === selectedDriver.assignedVehicleId) && (
+                          <option value={selectedDriver.assignedVehicleId}>
+                            {selectedDriver.assignedVehicle || "Current assignment"}
+                          </option>
+                        )}
+                      {vehicleOptions.map((vehicle) => (
+                        <option key={vehicle.id} value={vehicle.id}>
+                          {vehicle.label}
+                        </option>
+                      ))}
+                    </select>
+                    {vehicleOptions.length === 0 && (
+                      <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+                        No vehicles are available in this organization. Add a vehicle before assigning one.
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveVehicleAssignment()}
+                      disabled={
+                        savingVehicleAssignment ||
+                        selectedAssignedVehicleId === (selectedDriver.assignedVehicleId || "")
+                      }
+                      className="mt-2 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {savingVehicleAssignment && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                      {savingVehicleAssignment ? "Saving assignment..." : "Save vehicle assignment"}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
 
             <div className="border-t border-slate-100 py-4 dark:border-slate-800">
               <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">

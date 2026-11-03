@@ -283,11 +283,19 @@ router.patch("/:id", authorize("drivers", "update"), async (req: Request, res: R
     }
     const update = { ...parsed.data };
     if (update.linkedUserId === null) delete update.linkedUserId;
+    if (update.assignedVehicleId === null) delete update.assignedVehicleId;
     const updated = await Driver.findOneAndUpdate(
       { _id: req.params.id, organizationId: organizationId(req) },
       {
         $set: update,
-        ...(parsed.data.linkedUserId === null ? { $unset: { linkedUserId: 1 } } : {}),
+        ...((parsed.data.linkedUserId === null || parsed.data.assignedVehicleId === null)
+          ? {
+              $unset: {
+                ...(parsed.data.linkedUserId === null ? { linkedUserId: 1 } : {}),
+                ...(parsed.data.assignedVehicleId === null ? { assignedVehicleId: 1 } : {}),
+              },
+            }
+          : {}),
       },
       { new: true, runValidators: true }
     ).lean();
