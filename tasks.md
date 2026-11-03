@@ -214,3 +214,8 @@
 - [x] Added isolated MongoDB integration coverage for non-driver access denial, per-driver vehicle isolation, unassigned drivers, rejected browser-supplied IDs, inspection attribution, same-tenant linking, cross-tenant linking rejection, and unlink revocation (13 assertions passed).
 - [x] Backend TypeScript lint/build, frontend TypeScript check/build (using a temporary local API URL), focused Driver Portal ESLint, and `git diff --check` passed.
 - [ ] Broader ESLint over the touched frontend set still reports pre-existing violations in driver roster/API code; no unrelated lint cleanup was included.
+
+## Vercel Frontend Build Configuration
+- [x] Removed the ineffective frontend API environment value from `vercel.json` and added a shared API base resolver with the known production Render URL as a fallback; `NEXT_PUBLIC_API_URL` remains an override.
+- [x] Documented the production and development defaults and optional Vercel overrides.
+- [x] Reproduced the missing-variable prerender failure and verified the frontend production build with and without `NEXT_PUBLIC_API_URL`.
