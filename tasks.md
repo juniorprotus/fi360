@@ -220,6 +220,19 @@
 - [x] Documented the production and development defaults and optional Vercel overrides.
 - [x] Reproduced the missing-variable prerender failure and verified the frontend production build with and without `NEXT_PUBLIC_API_URL`.
 
+## Structured Driver eDVIR and Defect Workflow
+- [x] Extended inspections with server-derived driver/vehicle references, stable submission timestamps, odometer values, structured checklist answers, defect severity/status, driver attestation, idempotency, and review/defect history.
+- [x] Added a vehicle-type-specific authoritative checklist; incomplete answers and failed items without descriptions are rejected, and server-designated critical items cannot be downgraded by the browser.
+- [x] Added driver-only checklist/history/submission APIs that expose only the authenticated driver's reports and preserve the original vehicle reference after reassignment.
+- [x] Added auditable vehicle safety states: all defects restrict vehicles pending review, critical defects place them out of service, and drivers cannot clear restrictions.
+- [x] Added authorized manager review, repair verification tied to completed same-tenant maintenance work orders, and trip create/update checks that reject unavailable vehicles.
+- [x] Replaced placeholder-only driver and inspection screens with real pre-trip/post-trip reports, server-loaded checklist/history, defect review, and work-order linkage; inspection views no longer fall back to browser-local reports.
+- [x] Removed browser-local fallback success for trip creation/status updates and use server-confirmed transport data so safety rejections cannot appear as successful dispatches.
+- [x] Documented the eDVIR workflow and explicit limits around attachments, notifications, legacy records, pagination, and non-regulatory attestation in `docs/inspections-edvir.md`.
+- [x] Isolated driver-portal/eDVIR integration suite passed, including tenant isolation, attestations, idempotency, defect lifecycle, dispatch blocking, repair verification, and vehicle clearance.
+- [x] Backend TypeScript lint/build, frontend TypeScript/production build, focused screen lint, security regression suite (33 assertions), schema suite (20 assertions), and `git diff --check` passed.
+- [ ] Broader frontend ESLint still reports six pre-existing `no-explicit-any` errors in `frontend/src/lib/api.ts`; focused screen lint passes and API lint passes with only that legacy rule disabled.
+
 ## Updating Vehicle Assignments from Driver Profiles
 - [x] Added an Assigned Vehicle selector to existing driver profiles for owner, admin, and fleet-manager roles, using live organization-scoped vehicle records and IDs.
 - [x] Reused the existing driver PATCH endpoint and API contract; explicit `null` now safely unsets an assignment, while invalid, nonexistent, and cross-organization vehicle IDs remain rejected.

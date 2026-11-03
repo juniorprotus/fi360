@@ -14,6 +14,8 @@ export interface IMaintenanceLog {
   odometerKmAtService?: number;
   workshopNotes?: string;
   aiPredictionRef?: string;
+  sourceInspectionId?: Types.ObjectId | string;
+  sourceDefectId?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -51,8 +53,15 @@ const MaintenanceLogSchema = new Schema<IMaintenanceLog>(
     odometerKmAtService: { type: Number },
     workshopNotes: { type: String },
     aiPredictionRef: { type: String },
+    sourceInspectionId: { type: Schema.Types.ObjectId, ref: "Inspection" },
+    sourceDefectId: { type: String },
   },
   { timestamps: true }
+);
+
+MaintenanceLogSchema.index(
+  { organizationId: 1, sourceDefectId: 1 },
+  { unique: true, partialFilterExpression: { sourceDefectId: { $type: "string" } } }
 );
 
 export const MaintenanceLog = mongoose.models.MaintenanceLog || mongoose.model<IMaintenanceLog>("MaintenanceLog", MaintenanceLogSchema);

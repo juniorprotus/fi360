@@ -27,8 +27,6 @@ const LOCAL_STORAGE_KEY = "fi360_persisted_vehicles";
 const TYRES_STORAGE_KEY = "fi360_persisted_tyres";
 const FUEL_STORAGE_KEY = "fi360_persisted_fuel";
 const WORK_ORDERS_STORAGE_KEY = "fi360_persisted_work_orders";
-const INSPECTIONS_STORAGE_KEY = "fi360_persisted_inspections";
-const TRIPS_STORAGE_KEY = "fi360_persisted_trips";
 
 // Default seed vehicles
 const DEFAULT_SEED_VEHICLES: Vehicle[] = [
@@ -608,43 +606,91 @@ export interface InspectionItem {
   vehiclePlate: string;
   inspectorName: string;
   type: string;
-  outcome: "passed" | "failed" | "requires_attention";
+  vehicleId?: string;
+  driverId?: string;
+  outcome: "passed" | "passed_with_defects" | "failed" | "requires_attention";
+  reviewedOutcome?: "passed" | "passed_with_defects" | "failed";
   defectsSummary: string;
   date: string;
+  odometerKm?: number;
+  submittedAt?: string;
+  driverAttested?: boolean;
+  attestedBy?: string;
+  attestedAt?: string;
+  checklist?: Array<{ itemId: string; result: "pass" | "fail"; description?: string }>;
+  defects?: Array<{
+    _id: string;
+    itemId: string;
+    category: string;
+    description: string;
+    severity: "minor" | "major" | "critical";
+    status: "open" | "work_order_created" | "awaiting_verification" | "resolved";
+    workOrderId?: string;
+    history?: Array<{
+      status: "open" | "work_order_created" | "awaiting_verification" | "resolved";
+      changedBy: string;
+      actorName: string;
+      changedAt: string;
+      workOrderId?: string;
+      note: string;
+    }>;
+  }>;
+  reviewHistory?: Array<{
+    reviewerId: string;
+    reviewerName: string;
+    reviewedAt: string;
+    notes: string;
+    safetyDecision: "available" | "restricted" | "out_of_service";
+    reviewedOutcome: "passed" | "passed_with_defects" | "failed";
+    defectUpdates: Array<{
+      defectId: string;
+      status: "open" | "work_order_created" | "awaiting_verification" | "resolved";
+    }>;
+  }>;
 }
 
 export async function fetchInspections(): Promise<InspectionItem[]> {
-  try {
-    const res = await authFetch(`${API_BASE!}/api/inspections`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
-    if (res.ok) {
-      const json = await res.json();
-      setLocalItem(INSPECTIONS_STORAGE_KEY, json.data);
-      return json.data;
-    }
-  } catch {}
-  return getLocalItem<InspectionItem>(INSPECTIONS_STORAGE_KEY, []);
+  return requestDriverPortal<InspectionItem[]>("/inspections");
 }
 
-export async function createInspection(payload: InspectionItem): Promise<InspectionItem> {
-  try {
-    const res = await authFetch(`${API_BASE}/api/inspections`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(5000),
-    });
-    if (res.ok) {
-      const json = await res.json();
-      const list = getLocalItem<InspectionItem>(INSPECTIONS_STORAGE_KEY, []);
-      setLocalItem(INSPECTIONS_STORAGE_KEY, [json.data, ...list]);
-      return json.data;
-    }
-  } catch {}
+export interface InspectionChecklistItem {
+  id: string;
+  category: string;
+  label: string;
+  critical: boolean;
+}
 
-  const newItem: InspectionItem = { ...payload, id: `insp_${Date.now()}`, _id: `insp_${Date.now()}` };
-  const list = getLocalItem<InspectionItem>(INSPECTIONS_STORAGE_KEY, []);
-  setLocalItem(INSPECTIONS_STORAGE_KEY, [newItem, ...list]);
-  return newItem;
+export async function fetchDriverInspectionChecklist(): Promise<InspectionChecklistItem[]> {
+  return requestDriverPortal<InspectionChecklistItem[]>("/drivers/me/inspections/checklist");
+}
+
+export async function fetchDriverInspections(): Promise<InspectionItem[]> {
+  return requestDriverPortal<InspectionItem[]>("/drivers/me/inspections");
+}
+
+export async function reviewInspection(
+  inspectionId: string,
+  input: {
+    reviewedOutcome: "passed" | "passed_with_defects" | "failed";
+    safetyDecision: "available" | "restricted" | "out_of_service";
+    notes: string;
+    defectUpdates: Array<{ defectId: string; status: "open" | "awaiting_verification" | "resolved" }>;
+  }
+): Promise<InspectionItem> {
+  return requestDriverPortal<InspectionItem>(`/inspections/${encodeURIComponent(inspectionId)}/review`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function createDefectWorkOrder(
+  inspectionId: string,
+  defectId: string
+): Promise<void> {
+  await requestDriverPortal(
+    `/inspections/${encodeURIComponent(inspectionId)}/defects/${encodeURIComponent(defectId)}/work-order`,
+    { method: "POST", body: JSON.stringify({}) }
+  );
 }
 
 // ==================== TRANSPORT / DISPATCH MODULE ====================
@@ -663,58 +709,37 @@ export interface TripItem {
 }
 
 export async function fetchTrips(): Promise<TripItem[]> {
-  try {
-    const res = await authFetch(`${API_BASE!}/api/transport`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
-    if (res.ok) {
-      const json = await res.json();
-      setLocalItem(TRIPS_STORAGE_KEY, json.data);
-      return json.data;
-    }
-  } catch {}
-  return getLocalItem<TripItem>(TRIPS_STORAGE_KEY, []);
+  return requestDriverPortal<TripItem[]>("/transport", {
+    cache: "no-store",
+    signal: AbortSignal.timeout(5000),
+  });
 }
 
 export async function createTrip(payload: TripItem): Promise<TripItem> {
-  try {
-    const res = await authFetch(`${API_BASE}/api/transport`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(5000),
-    });
-    if (res.ok) {
-      const json = await res.json();
-      const list = getLocalItem<TripItem>(TRIPS_STORAGE_KEY, []);
-      setLocalItem(TRIPS_STORAGE_KEY, [json.data, ...list]);
-      return json.data;
-    }
-  } catch {}
-
-  const newItem: TripItem = { ...payload, id: `trip_${Date.now()}`, _id: `trip_${Date.now()}` };
-  const list = getLocalItem<TripItem>(TRIPS_STORAGE_KEY, []);
-  setLocalItem(TRIPS_STORAGE_KEY, [newItem, ...list]);
-  return newItem;
+  const res = await authFetch(`${API_BASE}/api/transport`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(5000),
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json?.success || !json.data) {
+    throw new ApiRequestError(json?.message || `Failed to create trip: HTTP ${res.status}`, res.status);
+  }
+  return json.data;
 }
 
 export async function updateTripStatus(id: string, status: "dispatched" | "in_transit" | "delivered" | "delayed"): Promise<boolean> {
-  try {
-    const res = await authFetch(`${API_BASE!}/api/transport/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-      signal: AbortSignal.timeout(5000),
-    });
-    if (res.ok) {
-      const list = getLocalItem<TripItem>(TRIPS_STORAGE_KEY, []);
-      const updated = list.map((t) => ((t._id || t.id) === id ? { ...t, status } : t));
-      setLocalItem(TRIPS_STORAGE_KEY, updated);
-      return true;
-    }
-  } catch {}
-
-  const list = getLocalItem<TripItem>(TRIPS_STORAGE_KEY, []);
-  const updated = list.map((t) => ((t._id || t.id) === id ? { ...t, status } : t));
-  setLocalItem(TRIPS_STORAGE_KEY, updated);
+  const res = await authFetch(`${API_BASE!}/api/transport/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+    signal: AbortSignal.timeout(5000),
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json?.success) {
+    throw new ApiRequestError(json?.message || `Failed to update trip: HTTP ${res.status}`, res.status);
+  }
   return true;
 }
 
@@ -751,6 +776,7 @@ export interface DriverPortalProfile {
     year: number;
     type: string;
     status: string;
+    safetyState: "available" | "restricted" | "out_of_service";
     odometerKm: number | null;
   };
 }
@@ -789,12 +815,19 @@ export async function fetchUnlinkedDriverAccounts(): Promise<DriverAccountOption
   return requestDriverPortal<DriverAccountOption[]>("/drivers/available-accounts");
 }
 
-export async function submitDriverPreTripInspection(input: {
-  type: string;
-  outcome: "passed" | "failed" | "requires_attention";
-  defectsSummary: string;
-}): Promise<void> {
-  await requestDriverPortal("/drivers/me/inspections", {
+export async function submitDriverInspection(input: {
+  type: "pre_trip" | "post_trip";
+  odometerKm: number;
+  clientSubmissionId: string;
+  driverAttested: true;
+  checklist: Array<{
+    itemId: string;
+    result: "pass" | "fail";
+    description?: string;
+    severity?: "minor" | "major";
+  }>;
+}): Promise<InspectionItem> {
+  return requestDriverPortal<InspectionItem>("/drivers/me/inspections", {
     method: "POST",
     body: JSON.stringify(input),
   });

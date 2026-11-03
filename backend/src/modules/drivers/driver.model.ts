@@ -46,4 +46,6 @@ DriverSchema.index(
   { unique: true, sparse: true, name: "driver_linked_user_unique" }
 );
 
-export const Driver = mongoose.models.Driver || mongoose.model<IDriver>("Driver", DriverSchema);
+export const Driver: mongoose.Model<IDriver> =
+  (mongoose.models.Driver as mongoose.Model<IDriver> | undefined) ||
+  mongoose.model<IDriver>("Driver", DriverSchema);

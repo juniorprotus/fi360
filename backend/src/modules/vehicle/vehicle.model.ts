@@ -9,6 +9,16 @@ export interface IVehicle {
   year: number;
   type: string;
   status: "active" | "maintenance" | "critical_failure" | "inactive";
+  safetyState?: "available" | "restricted" | "out_of_service";
+  safetyVersion?: number;
+  safetyHistory?: Array<{
+    state: "available" | "restricted" | "out_of_service";
+    reason: string;
+    inspectionId?: Types.ObjectId;
+    changedBy: Types.ObjectId;
+    actorName?: string;
+    changedAt: Date;
+  }>;
   organizationId?: Types.ObjectId | string;
   telematicsData: {
     odometerKm: number;
@@ -47,6 +57,21 @@ const VehicleSchema = new Schema<IVehicle>(
       default: "active",
       index: true,
     },
+    safetyState: {
+      type: String,
+      enum: ["available", "restricted", "out_of_service"],
+      default: "available",
+      index: true,
+    },
+    safetyVersion: { type: Number, min: 0, default: 0 },
+    safetyHistory: [{
+      state: { type: String, enum: ["available", "restricted", "out_of_service"], required: true },
+      reason: { type: String, required: true, maxlength: 1000 },
+      inspectionId: { type: Schema.Types.ObjectId, ref: "Inspection" },
+      changedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+      actorName: { type: String, maxlength: 100 },
+      changedAt: { type: Date, required: true },
+    }],
     organizationId: {
       type: Schema.Types.ObjectId,
       ref: "Organization",
@@ -71,4 +96,6 @@ const VehicleSchema = new Schema<IVehicle>(
   }
 );
 
-export const Vehicle = mongoose.models.Vehicle || mongoose.model<IVehicle>("Vehicle", VehicleSchema);
+export const Vehicle: mongoose.Model<IVehicle> =
+  (mongoose.models.Vehicle as mongoose.Model<IVehicle> | undefined) ||
+  mongoose.model<IVehicle>("Vehicle", VehicleSchema);

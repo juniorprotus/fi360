@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import http from "node:http";
+import { randomUUID } from "node:crypto";
 import mongoose from "mongoose";
 import app from "../server";
 import { connectDB, disconnectDB } from "../config/db";
@@ -8,6 +9,9 @@ import { User } from "../modules/auth/user.model";
 import { Driver } from "../modules/drivers/driver.model";
 import { Vehicle } from "../modules/vehicle/vehicle.model";
 import { Inspection } from "../modules/inspections/inspection.model";
+import { getChecklistForVehicle } from "../modules/inspections/inspection-checklist";
+import { MaintenanceLog } from "../modules/maintenance/maintenance.model";
+import { Trip } from "../modules/transport/trip.model";
 
 const HOST = "127.0.0.1";
 const FRONTEND_URL = "http://localhost:3000";
@@ -319,26 +323,199 @@ async function run(): Promise<void> {
       "driver inspection endpoint rejects browser-supplied driver and vehicle identifiers"
     );
 
+    const checklistResponse = await request(baseUrl, "GET", "/api/drivers/me/inspections/checklist", driverACookie);
+    const truckChecklist = getChecklistForVehicle("truck");
+    const checklistItems = checklistResponse.body.data as Array<{ id: string; critical: boolean }>;
+    const validSubmission = {
+      type: "pre_trip",
+      odometerKm: 48300,
+      clientSubmissionId: randomUUID(),
+      driverAttested: true,
+      checklist: truckChecklist.map((item) => ({ itemId: item.id, result: "pass" })),
+    };
+    const incompleteSubmission = await request(baseUrl, "POST", "/api/drivers/me/inspections", driverACookie, {
+      ...validSubmission,
+      clientSubmissionId: randomUUID(),
+      checklist: validSubmission.checklist.slice(1),
+    });
+    const undescribedFailure = await request(baseUrl, "POST", "/api/drivers/me/inspections", driverACookie, {
+      ...validSubmission,
+      clientSubmissionId: randomUUID(),
+      checklist: validSubmission.checklist.map((answer) =>
+        answer.itemId === "service-brakes" ? { ...answer, result: "fail" } : answer
+      ),
+    });
+    const unattestedSubmission = await request(baseUrl, "POST", "/api/drivers/me/inspections", driverACookie, {
+      ...validSubmission,
+      clientSubmissionId: randomUUID(),
+      driverAttested: false,
+    });
+    assertPass(
+      checklistResponse.status === 200 &&
+        checklistItems.length === truckChecklist.length &&
+        incompleteSubmission.status === 400 &&
+        undescribedFailure.status === 400 &&
+        unattestedSubmission.status === 400,
+      "server supplies the vehicle-specific checklist and rejects missing answers, undescribed failures, and missing driver attestation"
+    );
+
     const inspectionSubmission = await request(
       baseUrl,
       "POST",
       "/api/drivers/me/inspections",
       driverACookie,
-      {
-        type: "Pre-Trip Walkaround",
-        outcome: "passed",
-        defectsSummary: "No defects found.",
-      }
+      validSubmission
     );
     const persistedInspection = await Inspection.findOne({
       organizationId: owner.organizationId,
-      inspectorName: driverAUser.name,
-    }).sort({ createdAt: -1 });
+      clientSubmissionId: validSubmission.clientSubmissionId,
+    });
+    const replayedSubmission = await request(
+      baseUrl,
+      "POST",
+      "/api/drivers/me/inspections",
+      driverACookie,
+      validSubmission
+    );
+    const conflictingReplay = await request(
+      baseUrl,
+      "POST",
+      "/api/drivers/me/inspections",
+      driverACookie,
+      { ...validSubmission, odometerKm: validSubmission.odometerKm + 1 }
+    );
+    const driverAHistory = await request(baseUrl, "GET", "/api/drivers/me/inspections", driverACookie);
+    const driverBHistory = await request(baseUrl, "GET", "/api/drivers/me/inspections", driverBCookie);
+    const updatedOdometerVehicle = await Vehicle.findById(vehicleA._id).lean();
+    const reassignmentBeforeReplay = await request(
+      baseUrl,
+      "PATCH",
+      `/api/drivers/${driverA._id.toString()}`,
+      ownerCookie,
+      { assignedVehicleId: vehicleB._id.toString() }
+    );
+    const replayAfterReassignment = await request(
+      baseUrl,
+      "POST",
+      "/api/drivers/me/inspections",
+      driverACookie,
+      validSubmission
+    );
+    const vehicleBAfterReplay = await Vehicle.findById(vehicleB._id).lean();
+    await request(
+      baseUrl,
+      "PATCH",
+      `/api/drivers/${driverA._id.toString()}`,
+      ownerCookie,
+      { assignedVehicleId: vehicleA._id.toString() }
+    );
     assertPass(
       inspectionSubmission.status === 201 &&
-        persistedInspection?.vehiclePlate === vehicleA.plateNumber &&
-        persistedInspection.inspectorName === driverAUser.name,
-      "driver inspection is attributed to the authenticated user and server-selected vehicle"
+        replayedSubmission.status === 200 &&
+        conflictingReplay.status === 409 &&
+        inspectionSubmission.body.data._id === replayedSubmission.body.data._id &&
+        persistedInspection?.vehicleId?.toString() === vehicleA._id.toString() &&
+        persistedInspection?.driverId?.toString() === driverA._id.toString() &&
+        persistedInspection?.inspectorName === driverAUser.name &&
+        persistedInspection?.driverAttested === true &&
+        persistedInspection?.attestedBy?.toString() === driverAUser._id.toString() &&
+        persistedInspection?.checklist.length === truckChecklist.length &&
+        driverAHistory.body.data.some((record: { _id: string }) => record._id === persistedInspection?._id.toString()) &&
+        !driverBHistory.body.data.some((record: { _id: string }) => record._id === persistedInspection?._id.toString()) &&
+        updatedOdometerVehicle?.telematicsData.odometerKm === 48300 &&
+        reassignmentBeforeReplay.status === 200 &&
+        replayAfterReassignment.status === 200 &&
+        replayAfterReassignment.body.data.vehicleId === vehicleA._id.toString() &&
+        vehicleBAfterReplay?.telematicsData.odometerKm === 0,
+      "driver inspection is authenticated, idempotent, private, preserves odometer, and remains linked to its original vehicle after reassignment"
+    );
+    const managerInspectionList = await request(baseUrl, "GET", "/api/inspections", managerCookie);
+    const reviewedPassInspection = await request(
+      baseUrl,
+      "POST",
+      `/api/inspections/${persistedInspection?._id.toString()}/review`,
+      managerCookie,
+      { reviewedOutcome: "passed", safetyDecision: "available", notes: "No defects found.", defectUpdates: [] }
+    );
+    assertPass(
+      managerInspectionList.status === 200 &&
+        managerInspectionList.body.data.some((record: { _id: string }) => record._id === persistedInspection?._id.toString()) &&
+        reviewedPassInspection.status === 200 &&
+        reviewedPassInspection.body.data.reviewHistory.at(-1)?.reviewerName === fleetManager.name,
+      "authorized managers can list real tenant reports and persist a pass review with actor and timestamp"
+    );
+    const concurrentSubmissionBody = {
+      ...validSubmission,
+      odometerKm: 48301,
+      clientSubmissionId: randomUUID(),
+    };
+    const concurrentResponses = await Promise.all([
+      request(baseUrl, "POST", "/api/drivers/me/inspections", driverACookie, concurrentSubmissionBody),
+      request(baseUrl, "POST", "/api/drivers/me/inspections", driverACookie, concurrentSubmissionBody),
+    ]);
+    const concurrentReportCount = await Inspection.countDocuments({
+      organizationId: owner.organizationId,
+      clientSubmissionId: concurrentSubmissionBody.clientSubmissionId,
+    });
+    assertPass(
+      concurrentResponses.every((response) => response.status === 200 || response.status === 201) &&
+        concurrentResponses.filter((response) => response.status === 201).length === 1 &&
+        concurrentResponses[0].body.data._id === concurrentResponses[1].body.data._id &&
+        concurrentReportCount === 1,
+      "concurrent retries with one idempotency key produce exactly one persisted report"
+    );
+    const minorSubmission = {
+      ...validSubmission,
+      odometerKm: 48305,
+      clientSubmissionId: randomUUID(),
+      checklist: truckChecklist.map((item) => item.id === "windshield"
+        ? { itemId: item.id, result: "fail", description: "Small chip outside the driver's line of sight", severity: "minor" }
+        : { itemId: item.id, result: "pass" }),
+    };
+    const minorReportResponse = await request(
+      baseUrl,
+      "POST",
+      "/api/drivers/me/inspections",
+      driverACookie,
+      minorSubmission
+    );
+    const blockedMinorDispatch = await request(baseUrl, "POST", "/api/transport", managerCookie, {
+      vehiclePlate: vehicleA.plateNumber,
+      assignedDriver: driverA.fullName,
+      origin: "Nairobi",
+      destination: "Mombasa",
+    });
+    const approveMinorOperation = await request(
+      baseUrl,
+      "POST",
+      `/api/inspections/${minorReportResponse.body.data?._id}/review`,
+      managerCookie,
+      { reviewedOutcome: "passed_with_defects", safetyDecision: "available", defectUpdates: [] }
+    );
+    const replayMinorSubmission = await request(
+      baseUrl,
+      "POST",
+      "/api/drivers/me/inspections",
+      driverACookie,
+      minorSubmission
+    );
+    const vehicleAfterMinorReplay = await Vehicle.findById(vehicleA._id).lean();
+    const permittedMinorDispatch = await request(baseUrl, "POST", "/api/transport", managerCookie, {
+      vehiclePlate: vehicleA.plateNumber,
+      assignedDriver: driverA.fullName,
+      origin: "Nairobi",
+      destination: "Mombasa",
+    });
+    assertPass(
+      minorReportResponse.status === 201 &&
+        minorReportResponse.body.data.outcome === "failed" &&
+        blockedMinorDispatch.status === 409 &&
+        approveMinorOperation.status === 200 &&
+        approveMinorOperation.body.data.reviewedOutcome === "passed_with_defects" &&
+        replayMinorSubmission.status === 200 &&
+        vehicleAfterMinorReplay?.safetyState === "available" &&
+        permittedMinorDispatch.status === 201,
+      "minor defects restrict operation until review; an approved report replay does not reinstate stale restrictions"
     );
 
     const unassignedInspection = await request(
@@ -346,9 +523,145 @@ async function run(): Promise<void> {
       "POST",
       "/api/drivers/me/inspections",
       unassignedCookie,
-      { type: "Pre-Trip Walkaround", outcome: "passed", defectsSummary: "Clear." }
+      {
+        type: "pre_trip",
+        odometerKm: 0,
+        clientSubmissionId: randomUUID(),
+        driverAttested: true,
+        checklist: truckChecklist.map((item) => ({ itemId: item.id, result: "pass" })),
+      }
     );
     assertPass(unassignedInspection.status === 409, "unassigned driver cannot submit a vehicle inspection");
+
+    const criticalSubmission = {
+      ...validSubmission,
+      type: "post_trip",
+      odometerKm: 48310,
+      clientSubmissionId: randomUUID(),
+      checklist: truckChecklist.map((item) => item.id === "service-brakes"
+        ? { itemId: item.id, result: "fail", description: "Brake warning and reduced pressure", severity: "minor" }
+        : { itemId: item.id, result: "pass" }),
+    };
+    const criticalResponse = await request(
+      baseUrl,
+      "POST",
+      "/api/drivers/me/inspections",
+      driverACookie,
+      criticalSubmission
+    );
+    const criticalReport = await Inspection.findById(criticalResponse.body.data?._id);
+    const vehicleAfterCritical = await Vehicle.findById(vehicleA._id).lean();
+    const blockedTrip = await request(baseUrl, "POST", "/api/transport", managerCookie, {
+      vehiclePlate: vehicleA.plateNumber,
+      assignedDriver: driverA.fullName,
+      origin: "Nairobi",
+      destination: "Mombasa",
+    });
+    const unsafeTripProgress = await request(
+      baseUrl,
+      "PATCH",
+      `/api/transport/${permittedMinorDispatch.body.data._id}`,
+      managerCookie,
+      { status: "in_transit" }
+    );
+    const stopUnsafeTrip = await request(
+      baseUrl,
+      "PATCH",
+      `/api/transport/${permittedMinorDispatch.body.data._id}`,
+      managerCookie,
+      { status: "delayed" }
+    );
+    assertPass(
+      criticalResponse.status === 201 &&
+        criticalReport?.outcome === "failed" &&
+        criticalReport.defects[0]?.severity === "critical" &&
+        vehicleAfterCritical?.safetyState === "out_of_service" &&
+        vehicleAfterCritical?.safetyHistory?.at(-1)?.changedBy?.toString() === driverAUser._id.toString() &&
+        blockedTrip.status === 409 &&
+        unsafeTripProgress.status === 409 &&
+        stopUnsafeTrip.status === 200,
+      "critical defects place the vehicle out of service, block dispatch and continued trip progress, and let dispatchers record a stop/delay"
+    );
+
+    const criticalDefect = criticalResponse.body.data.defects[0] as { _id: string };
+    const managerReviewDenied = await request(
+      baseUrl,
+      "POST",
+      `/api/inspections/${criticalResponse.body.data._id}/review`,
+      viewerCookie,
+      { reviewedOutcome: "failed", safetyDecision: "out_of_service", defectUpdates: [] }
+    );
+    const workOrderResponse = await request(
+      baseUrl,
+      "POST",
+      `/api/inspections/${criticalResponse.body.data._id}/defects/${criticalDefect._id}/work-order`,
+      managerCookie,
+      {}
+    );
+    const repeatedWorkOrder = await request(
+      baseUrl,
+      "POST",
+      `/api/inspections/${criticalResponse.body.data._id}/defects/${criticalDefect._id}/work-order`,
+      managerCookie,
+      {}
+    );
+    const criticalWorkOrder = await MaintenanceLog.findOne({ sourceDefectId: criticalDefect._id });
+    const incompleteRepairReview = await request(
+      baseUrl,
+      "POST",
+      `/api/inspections/${criticalResponse.body.data._id}/review`,
+      managerCookie,
+      {
+        reviewedOutcome: "passed",
+        safetyDecision: "available",
+        defectUpdates: [{ defectId: criticalDefect._id, status: "resolved" }],
+      }
+    );
+    assertPass(
+      managerReviewDenied.status === 403 &&
+        workOrderResponse.status === 201 &&
+        repeatedWorkOrder.status === 200 &&
+        criticalWorkOrder?.priority === "urgent" &&
+        criticalWorkOrder?.sourceInspectionId?.toString() === criticalReport?._id.toString() &&
+        incompleteRepairReview.status === 409,
+      "review authorization is enforced, defect work orders are idempotently linked, and incomplete repairs cannot clear a critical defect"
+    );
+
+    const completeWorkOrder = await request(
+      baseUrl,
+      "PATCH",
+      `/api/maintenance/${criticalWorkOrder?._id.toString()}`,
+      managerCookie,
+      { status: "completed", completedDate: new Date().toISOString() }
+    );
+    const clearCriticalVehicle = await request(
+      baseUrl,
+      "POST",
+      `/api/inspections/${criticalResponse.body.data._id}/review`,
+      managerCookie,
+      {
+        reviewedOutcome: "passed",
+        safetyDecision: "available",
+        notes: "Completed repair inspected and verified.",
+        defectUpdates: [{ defectId: criticalDefect._id, status: "resolved" }],
+      }
+    );
+    const clearedVehicle = await Vehicle.findById(vehicleA._id).lean();
+    const dispatchAfterClear = await request(baseUrl, "POST", "/api/transport", managerCookie, {
+      vehiclePlate: vehicleA.plateNumber,
+      assignedDriver: driverA.fullName,
+      origin: "Nairobi",
+      destination: "Mombasa",
+    });
+    assertPass(
+      completeWorkOrder.status === 200 &&
+        clearCriticalVehicle.status === 200 &&
+        clearedVehicle?.safetyState === "available" &&
+        clearCriticalVehicle.body.data.reviewHistory.at(-1)?.reviewerName === fleetManager.name &&
+        clearCriticalVehicle.body.data.defects[0]?.history.at(-1)?.actorName === fleetManager.name &&
+        dispatchAfterClear.status === 201,
+      "only a completed, linked repair can be manager-verified, clear the vehicle, and allow dispatch"
+    );
 
     const ownerCreateLinkedDriver = await request(
       baseUrl,
@@ -387,6 +700,19 @@ async function run(): Promise<void> {
       organizationName: otherOrganization.user.organizationName,
       status: "active",
     });
+    const foreignOwner = await User.findById(otherOrganization.user.userId);
+    if (!foreignOwner) throw new Error("Foreign organization owner was not created.");
+    const foreignInspectionReview = await request(
+      baseUrl,
+      "POST",
+      `/api/inspections/${criticalResponse.body.data._id}/review`,
+      await createSession(foreignOwner),
+      { reviewedOutcome: "failed", safetyDecision: "out_of_service", defectUpdates: [] }
+    );
+    assertPass(
+      foreignInspectionReview.status === 404,
+      "a manager from another organization cannot review an inspection outside the tenant boundary"
+    );
     const foreignVehicle = await Vehicle.create({
       vin: "PORTALFOREIGNVIN001",
       plateNumber: `PORTALX${Date.now().toString().slice(-5)}`,

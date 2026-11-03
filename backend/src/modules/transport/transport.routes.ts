@@ -38,14 +38,18 @@ async function referencesBelongToOrganization(
   vehiclePlate: string,
   assignedDriver: string,
   tenantId: string
-): Promise<boolean> {
+): Promise<"invalid_reference" | "vehicle_unavailable" | null> {
   const normalizedPlate = vehiclePlate.toUpperCase().trim();
   const normalizedDriver = assignedDriver.trim();
   const [vehicle, driver] = await Promise.all([
-    Vehicle.findOne({ plateNumber: normalizedPlate, organizationId: tenantId }).select("_id").lean(),
+    Vehicle.findOne({ plateNumber: normalizedPlate, organizationId: tenantId }).select("_id status safetyState").lean(),
     Driver.findOne({ fullName: normalizedDriver, organizationId: tenantId }).select("_id").lean(),
   ]);
-  return !!vehicle && !!driver;
+  if (!vehicle || !driver) return "invalid_reference";
+  if (vehicle.status !== "active" || (vehicle.safetyState && vehicle.safetyState !== "available")) {
+    return "vehicle_unavailable";
+  }
+  return null;
 }
 
 router.get("/", authorize("transport", "read"), async (req: Request, res: Response): Promise<void> => {
@@ -65,8 +69,13 @@ router.post("/", authorize("transport", "create"), async (req: Request, res: Res
   }
   const plate = parsed.data.vehiclePlate.toUpperCase().trim();
   try {
-    if (!(await referencesBelongToOrganization(plate, parsed.data.assignedDriver, organizationId(req)))) {
+    const invalidReference = await referencesBelongToOrganization(plate, parsed.data.assignedDriver, organizationId(req));
+    if (invalidReference === "invalid_reference") {
       res.status(400).json({ success: false, message: "Assigned vehicle and driver must belong to your organization." });
+      return;
+    }
+    if (invalidReference === "vehicle_unavailable") {
+      res.status(409).json({ success: false, message: "Vehicle is inactive, restricted, or out of service and cannot be dispatched." });
       return;
     }
     const created = await Trip.create({
@@ -103,8 +112,17 @@ router.patch("/:id", authorize("transport", "update"), async (req: Request, res:
 
     const vehiclePlate = parsed.data.vehiclePlate ?? existing.vehiclePlate;
     const assignedDriver = parsed.data.assignedDriver ?? existing.assignedDriver;
-    if (!(await referencesBelongToOrganization(vehiclePlate, assignedDriver, organizationId(req)))) {
+    const invalidReference = await referencesBelongToOrganization(vehiclePlate, assignedDriver, organizationId(req));
+    if (invalidReference === "invalid_reference") {
       res.status(400).json({ success: false, message: "Assigned vehicle and driver must belong to your organization." });
+      return;
+    }
+    if (
+      invalidReference === "vehicle_unavailable" &&
+      parsed.data.status !== "delayed" &&
+      parsed.data.status !== "delivered"
+    ) {
+      res.status(409).json({ success: false, message: "Vehicle is inactive, restricted, or out of service and cannot be dispatched." });
       return;
     }
     const updates = {

@@ -6,6 +6,11 @@ import { DriverCreateSchema, DriverUpdateSchema } from "./driver.schema";
 import { IVehicle, Vehicle } from "../vehicle/vehicle.model";
 import { User } from "../auth/user.model";
 import { Inspection } from "../inspections/inspection.model";
+import { getChecklistForVehicle } from "../inspections/inspection-checklist";
+import {
+  DriverInspectionSubmissionSchema,
+  submitDriverInspection,
+} from "../inspections/driver-inspection.service";
 import { authorize } from "../auth/authorization.middleware";
 import { requireDatabase, requireOrganization } from "../auth/tenant.middleware";
 
@@ -36,14 +41,6 @@ async function validateLinkedUser(
   return !existingLink;
 }
 
-const DriverInspectionSchema = z.object({
-  reportNumber: z.string().trim().min(1).max(100).optional(),
-  type: z.string().trim().min(1).max(100).default("Pre-Trip Walkaround"),
-  outcome: z.enum(["passed", "failed", "requires_attention"]).default("passed"),
-  defectsSummary: z.string().trim().max(1000).default("Zero critical defects noted."),
-  date: z.string().min(1).max(40).optional(),
-}).strict();
-
 router.get("/me", async (req: Request, res: Response): Promise<void> => {
   if (req.user?.role !== "driver") {
     res.status(403).json({ success: false, message: "Driver portal access is restricted to driver accounts." });
@@ -65,7 +62,7 @@ router.get("/me", async (req: Request, res: Response): Promise<void> => {
           _id: driver.assignedVehicleId,
           organizationId: organizationId(req),
         })
-          .select("plateNumber make model year type status telematicsData.odometerKm")
+          .select("plateNumber make model year type status safetyState telematicsData.odometerKm")
           .lean<IVehicle | null>()
       : null;
     res.json({
@@ -87,6 +84,7 @@ router.get("/me", async (req: Request, res: Response): Promise<void> => {
               year: vehicle.year,
               type: vehicle.type,
               status: vehicle.status,
+              safetyState: vehicle.safetyState || "available",
               odometerKm: vehicle.telematicsData?.odometerKm ?? null,
             }
           : null,
@@ -97,13 +95,67 @@ router.get("/me", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
+router.get("/me/inspections/checklist", async (req: Request, res: Response): Promise<void> => {
+  if (req.user?.role !== "driver") {
+    res.status(403).json({ success: false, message: "Driver portal access is restricted to driver accounts." });
+    return;
+  }
+  try {
+    const driver = await Driver.findOne({
+      linkedUserId: req.user.userId,
+      organizationId: organizationId(req),
+      status: "active",
+    }).select("assignedVehicleId").lean<{ assignedVehicleId?: mongoose.Types.ObjectId } | null>();
+    if (!driver?.assignedVehicleId) {
+      res.status(409).json({ success: false, message: "No vehicle is assigned to this driver." });
+      return;
+    }
+    const vehicle = await Vehicle.findOne({
+      _id: driver.assignedVehicleId,
+      organizationId: organizationId(req),
+    }).select("type").lean<{ type: string } | null>();
+    if (!vehicle) {
+      res.status(404).json({ success: false, message: "The assigned vehicle is unavailable." });
+      return;
+    }
+    res.json({ success: true, data: getChecklistForVehicle(vehicle.type) });
+  } catch {
+    res.status(500).json({ success: false, message: "Failed to fetch the inspection checklist." });
+  }
+});
+
+router.get("/me/inspections", async (req: Request, res: Response): Promise<void> => {
+  if (req.user?.role !== "driver") {
+    res.status(403).json({ success: false, message: "Driver portal access is restricted to driver accounts." });
+    return;
+  }
+  try {
+    const driver = await Driver.findOne({
+      linkedUserId: req.user.userId,
+      organizationId: organizationId(req),
+      status: "active",
+    }).select("_id").lean<{ _id: mongoose.Types.ObjectId } | null>();
+    if (!driver) {
+      res.status(404).json({ success: false, message: "No active driver profile is linked to this account." });
+      return;
+    }
+    const records = await Inspection.find({
+      organizationId: organizationId(req),
+      driverId: driver._id,
+    }).sort({ submittedAt: -1 }).limit(100).lean();
+    res.json({ success: true, count: records.length, data: records });
+  } catch {
+    res.status(500).json({ success: false, message: "Failed to fetch inspection history." });
+  }
+});
+
 router.post("/me/inspections", async (req: Request, res: Response): Promise<void> => {
   if (req.user?.role !== "driver") {
     res.status(403).json({ success: false, message: "Driver portal access is restricted to driver accounts." });
     return;
   }
   try {
-    const parsed = DriverInspectionSchema.safeParse(req.body);
+    const parsed = DriverInspectionSubmissionSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({
         success: false,
@@ -111,36 +163,17 @@ router.post("/me/inspections", async (req: Request, res: Response): Promise<void
       });
       return;
     }
-    const driver = await Driver.findOne({
-      linkedUserId: req.user.userId,
+    const result = await submitDriverInspection({
+      submission: parsed.data,
       organizationId: organizationId(req),
-      status: "active",
-    }).select("assignedVehicleId").lean<Pick<IDriver, "assignedVehicleId"> | null>();
-    if (!driver) {
-      res.status(404).json({ success: false, message: "No active driver profile is linked to this account." });
-      return;
-    }
-    if (!driver.assignedVehicleId) {
-      res.status(409).json({ success: false, message: "No vehicle is assigned to this driver." });
-      return;
-    }
-    const vehicle = await Vehicle.findOne({
-      _id: driver.assignedVehicleId,
-      organizationId: organizationId(req),
-    }).select<Pick<IVehicle, "plateNumber">>("plateNumber").lean<Pick<IVehicle, "plateNumber"> | null>();
-    if (!vehicle) {
-      res.status(404).json({ success: false, message: "The assigned vehicle is unavailable." });
-      return;
-    }
-    const inspection = await Inspection.create({
-      ...parsed.data,
-      reportNumber: parsed.data.reportNumber || `EDVIR-${Date.now()}`,
-      vehiclePlate: vehicle.plateNumber,
+      userId: req.user.userId,
       inspectorName: req.user.name,
-      date: parsed.data.date || new Date().toISOString(),
-      organizationId: organizationId(req),
     });
-    res.status(201).json({ success: true, data: inspection });
+    if (!result.data) {
+      res.status(result.status).json({ success: false, message: result.message });
+      return;
+    }
+    res.status(result.status).json({ success: true, data: result.data });
   } catch {
     res.status(500).json({ success: false, message: "Failed to submit driver inspection." });
   }
