@@ -107,8 +107,8 @@ check(parsedMaintenance.success, "maintenance accepts the maximum description bo
 if (parsedMaintenance.success) {
   assert.equal(parsedMaintenance.data.status, "scheduled");
   assert.equal(parsedMaintenance.data.priority, "medium");
-  assert.equal(parsedMaintenance.data.cost, 0);
-  console.log("PASS: maintenance defaults are preserved");
+  assert.equal(parsedMaintenance.data.cost, undefined);
+  console.log("PASS: unrecorded maintenance costs remain unset");
 }
 check(
   !MaintenanceCreateSchema.safeParse({
@@ -138,4 +138,3 @@ check(
   }).success,
   "AI request rejects missing required fields"
 );
-

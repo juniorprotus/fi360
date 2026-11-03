@@ -10,7 +10,7 @@ export const MaintenanceCreateSchema = z.object({
   status: MaintenanceStatusEnum.default("scheduled"),
   priority: PriorityEnum.default("medium"),
   description: z.string().min(5).max(500),
-  cost: z.number().nonnegative().default(0),
+  cost: z.number().nonnegative().optional(),
   scheduledDate: z.string(),
   completedDate: z.string().optional(),
   odometerKmAtService: z.number().nonnegative().optional(),

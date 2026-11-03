@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import mongoose from "mongoose";
-import { MaintenanceLog } from "./maintenance.model";
+import { IMaintenanceLog, MaintenanceLog } from "./maintenance.model";
 import { MaintenanceCreateSchema, MaintenanceUpdateSchema } from "./maintenance.schema";
 import { Vehicle } from "../vehicle/vehicle.model";
 import { authorize } from "../auth/authorization.middleware";
@@ -22,7 +22,18 @@ router.get("/", authorize("maintenance", "read"), async (req: Request, res: Resp
       query.vehicleId = req.query.vehicleId;
     }
     const records = await MaintenanceLog.find(query).sort({ scheduledDate: -1 }).lean();
-    res.json({ success: true, count: records.length, data: records });
+    const vehicleIds = [...new Set(records.map((record) => record.vehicleId.toString()))];
+    const vehicles = await Vehicle.find({
+      _id: { $in: vehicleIds },
+      organizationId: organizationId(req),
+    }).select("_id plateNumber").lean();
+    const vehiclesById = new Map(vehicles.map((vehicle) => [vehicle._id.toString(), vehicle]));
+    const data = records.map((record) => ({
+      ...record,
+      vehiclePlate: record.vehiclePlateSnapshot || vehiclesById.get(record.vehicleId.toString())?.plateNumber || null,
+      costRecorded: record.costRecorded === true || (typeof record.cost === "number" && record.cost > 0),
+    }));
+    res.json({ success: true, count: data.length, data });
   } catch {
     res.status(500).json({ success: false, message: "Failed to fetch maintenance records." });
   }
@@ -42,7 +53,7 @@ router.post("/", authorize("maintenance", "create"), async (req: Request, res: R
     const vehicle = await Vehicle.findOne({
       _id: parsed.data.vehicleId,
       organizationId: organizationId(req),
-    }).select("_id").lean();
+    }).select("_id plateNumber").lean();
     if (!vehicle) {
       res.status(400).json({ success: false, message: "Vehicle must belong to your organization." });
       return;
@@ -50,10 +61,19 @@ router.post("/", authorize("maintenance", "create"), async (req: Request, res: R
     const created = await MaintenanceLog.create({
       ...parsed.data,
       organizationId: organizationId(req),
+      vehiclePlateSnapshot: vehicle.plateNumber,
+      costRecorded: parsed.data.cost !== undefined,
       scheduledDate: new Date(parsed.data.scheduledDate),
       completedDate: parsed.data.completedDate ? new Date(parsed.data.completedDate) : undefined,
     });
-    res.status(201).json({ success: true, data: created });
+    res.status(201).json({
+      success: true,
+      data: {
+        ...created.toObject(),
+        vehiclePlate: created.vehiclePlateSnapshot,
+        costRecorded: created.costRecorded === true || (typeof created.cost === "number" && created.cost > 0),
+      },
+    });
   } catch {
     res.status(500).json({ success: false, message: "Failed to create maintenance record." });
   }
@@ -70,6 +90,15 @@ router.patch("/:id", authorize("maintenance", "update"), async (req: Request, re
     return;
   }
   try {
+    const existing = await MaintenanceLog.findOne({
+      _id: req.params.id,
+      organizationId: organizationId(req),
+    }).lean<IMaintenanceLog>();
+    if (!existing) {
+      res.status(404).json({ success: false, message: "Maintenance record not found." });
+      return;
+    }
+    let updatedVehiclePlate: string | undefined;
     if (parsed.data.vehicleId) {
       if (!mongoose.isValidObjectId(parsed.data.vehicleId)) {
         res.status(400).json({ success: false, message: "Vehicle ID is invalid." });
@@ -78,25 +107,50 @@ router.patch("/:id", authorize("maintenance", "update"), async (req: Request, re
       const vehicle = await Vehicle.findOne({
         _id: parsed.data.vehicleId,
         organizationId: organizationId(req),
-      }).select("_id").lean();
+      }).select("_id plateNumber").lean();
       if (!vehicle) {
         res.status(400).json({ success: false, message: "Vehicle must belong to your organization." });
         return;
       }
+      if (
+        existing.sourceDefectId &&
+        parsed.data.vehicleId !== existing.vehicleId.toString()
+      ) {
+        res.status(409).json({ success: false, message: "Inspection-linked work orders cannot be reassigned to another vehicle." });
+        return;
+      }
+      if (parsed.data.vehicleId !== existing.vehicleId.toString()) {
+        updatedVehiclePlate = vehicle.plateNumber;
+      }
     }
     const updates: Record<string, unknown> = { ...parsed.data };
+    if (updatedVehiclePlate) updates.vehiclePlateSnapshot = updatedVehiclePlate;
+    if (parsed.data.cost !== undefined) updates.costRecorded = true;
     if (parsed.data.scheduledDate) updates.scheduledDate = new Date(parsed.data.scheduledDate);
     if (parsed.data.completedDate) updates.completedDate = new Date(parsed.data.completedDate);
     const updated = await MaintenanceLog.findOneAndUpdate(
       { _id: req.params.id, organizationId: organizationId(req) },
       { $set: updates },
       { new: true, runValidators: true }
-    ).lean();
+    ).lean<IMaintenanceLog>();
     if (!updated) {
       res.status(404).json({ success: false, message: "Maintenance record not found." });
       return;
     }
-    res.json({ success: true, data: updated });
+    const vehicle = updated.vehiclePlateSnapshot
+      ? null
+      : await Vehicle.findOne({
+          _id: updated.vehicleId,
+          organizationId: organizationId(req),
+        }).select("plateNumber").lean();
+    res.json({
+      success: true,
+      data: {
+        ...updated,
+        vehiclePlate: updated.vehiclePlateSnapshot || vehicle?.plateNumber || null,
+        costRecorded: updated.costRecorded === true || (typeof updated.cost === "number" && updated.cost > 0),
+      },
+    });
   } catch {
     res.status(500).json({ success: false, message: "Failed to update maintenance record." });
   }

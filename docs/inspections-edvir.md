@@ -8,6 +8,8 @@ Every reported defect places the vehicle `restricted` pending review; critical d
 
 Vehicle operational availability is checked when transport trips are created or moved into dispatch/in-transit states. If a vehicle becomes unsafe during an already active trip, the dispatcher must record the trip as delayed or delivered; the app cannot physically stop a vehicle or automatically cancel a trip. Other integrations that dispatch or operate vehicles must also enforce the persisted safety state before assigning work.
 
+An inspection-originated maintenance work order retains the inspection's vehicle ID and registration snapshot. The workshop uses that snapshot for historical display, rather than substituting a demo registration or following a later vehicle registration change. Maintenance cost is optional until entered; a recorded zero is distinguished from a pending estimate.
+
 ## Current limitations
 
 - Attachment/photo upload is not implemented; inspection reports retain structured answers and text descriptions only.

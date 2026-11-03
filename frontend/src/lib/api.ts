@@ -26,7 +26,6 @@ function authFetch(url: RequestInfo | URL, init?: RequestInit): Promise<Response
 const LOCAL_STORAGE_KEY = "fi360_persisted_vehicles";
 const TYRES_STORAGE_KEY = "fi360_persisted_tyres";
 const FUEL_STORAGE_KEY = "fi360_persisted_fuel";
-const WORK_ORDERS_STORAGE_KEY = "fi360_persisted_work_orders";
 
 // Default seed vehicles
 const DEFAULT_SEED_VEHICLES: Vehicle[] = [
@@ -213,6 +212,23 @@ export async function fetchVehicles(): Promise<{ data: Vehicle[]; isFallback: bo
     const local = getStoredVehicles();
     return { data: local, isFallback: true };
   }
+}
+
+export async function fetchWorkshopVehicles(): Promise<Vehicle[]> {
+  const res = await authFetch(`${API_BASE!}/api/vehicles`, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(10000),
+  });
+  let json: { success?: boolean; message?: string; data?: Vehicle[] } | null = null;
+  try {
+    json = await res.json();
+  } catch {
+    json = null;
+  }
+  if (!res.ok || !Array.isArray(json?.data)) {
+    throw new ApiRequestError(json?.message || `Failed to load vehicles: HTTP ${res.status}`, res.status);
+  }
+  return json.data;
 }
 
 export async function fetchVehicleById(id: string): Promise<Vehicle | null> {
@@ -516,85 +532,72 @@ export async function createFuelLog(payload: FuelItem): Promise<FuelItem> {
 export interface WorkOrderItem {
   id?: string;
   _id?: string;
-  vehiclePlate: string;
+  vehicleId?: string;
+  vehiclePlate?: string | null;
   description: string;
-  type: string;
+  type: "inspection" | "oil_service" | "brake_system" | "tyre_rotation" | "engine_overhaul" | "electrical" | "emergency_repair";
   status: "scheduled" | "in_progress" | "completed";
   priority: "low" | "medium" | "high" | "urgent";
-  cost: number;
+  cost?: number;
+  costRecorded?: boolean;
   workshopNotes?: string;
   scheduledDate?: string;
 }
 
 export async function fetchWorkOrders(): Promise<WorkOrderItem[]> {
+  const res = await authFetch(`${API_BASE!}/api/maintenance`, { cache: "no-store", signal: AbortSignal.timeout(10000) });
+  let json: { success?: boolean; message?: string; data?: WorkOrderItem[] } | null = null;
   try {
-    const res = await authFetch(`${API_BASE!}/api/maintenance`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
-    if (res.ok) {
-      const json = await res.json();
-      // Format populated vehicleId if needed
-      const normalized = (json.data || []).map((m: any) => ({
-        ...m,
-        id: m._id,
-        vehiclePlate: m.vehicleId?.plateNumber || m.vehiclePlate || "KBZ-482L",
-      }));
-      setLocalItem(WORK_ORDERS_STORAGE_KEY, normalized);
-      return normalized;
-    }
-  } catch {}
-  return getLocalItem<WorkOrderItem>(WORK_ORDERS_STORAGE_KEY, []);
+    json = await res.json();
+  } catch {
+    json = null;
+  }
+  if (!res.ok || !Array.isArray(json?.data)) {
+    throw new ApiRequestError(json?.message || `Failed to load work orders: HTTP ${res.status}`, res.status);
+  }
+  return json.data.map((order) => ({ ...order, id: order._id }));
 }
 
-export async function createWorkOrder(payload: WorkOrderItem): Promise<WorkOrderItem> {
+export type CreateWorkOrderInput = Omit<WorkOrderItem, "id" | "_id" | "vehiclePlate" | "costRecorded"> & {
+  vehicleId: string;
+};
+
+export async function createWorkOrder(payload: CreateWorkOrderInput): Promise<WorkOrderItem> {
+  const res = await authFetch(`${API_BASE!}/api/maintenance`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(10000),
+  });
+  let json: { success?: boolean; message?: string; data?: WorkOrderItem } | null = null;
   try {
-    // Look up vehicle if available
-    const vehs = getStoredVehicles();
-    const matched = vehs.find((v) => v.plateNumber === payload.vehiclePlate);
-    const apiPayload = {
-      ...payload,
-      vehicleId: matched?._id || matched?.id || "6ac43a651bf32b260320aa6c",
-    };
-
-    const res = await authFetch(`${API_BASE}/api/maintenance`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(apiPayload),
-      signal: AbortSignal.timeout(5000),
-    });
-    if (res.ok) {
-      const json = await res.json();
-      const created = { ...json.data, vehiclePlate: payload.vehiclePlate, id: json.data._id };
-      const list = getLocalItem<WorkOrderItem>(WORK_ORDERS_STORAGE_KEY, []);
-      setLocalItem(WORK_ORDERS_STORAGE_KEY, [created, ...list]);
-      return created;
-    }
-  } catch {}
-
-  const newItem: WorkOrderItem = { ...payload, id: `wo_${Date.now()}`, _id: `wo_${Date.now()}` };
-  const list = getLocalItem<WorkOrderItem>(WORK_ORDERS_STORAGE_KEY, []);
-  setLocalItem(WORK_ORDERS_STORAGE_KEY, [newItem, ...list]);
-  return newItem;
+    json = await res.json();
+  } catch {
+    json = null;
+  }
+  if (!res.ok || !json?.data) {
+    throw new ApiRequestError(json?.message || `Failed to create work order: HTTP ${res.status}`, res.status);
+  }
+  return { ...json.data, id: json.data._id };
 }
 
-export async function updateWorkOrderStatus(id: string, status: "scheduled" | "in_progress" | "completed"): Promise<boolean> {
+export async function updateWorkOrderStatus(id: string, status: "scheduled" | "in_progress" | "completed"): Promise<WorkOrderItem> {
+  const res = await authFetch(`${API_BASE!}/api/maintenance/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+    signal: AbortSignal.timeout(10000),
+  });
+  let json: { success?: boolean; message?: string; data?: WorkOrderItem } | null = null;
   try {
-    const res = await authFetch(`${API_BASE!}/api/maintenance/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-      signal: AbortSignal.timeout(5000),
-    });
-    if (res.ok) {
-      const list = getLocalItem<WorkOrderItem>(WORK_ORDERS_STORAGE_KEY, []);
-      const updated = list.map((w) => ((w._id || w.id) === id ? { ...w, status } : w));
-      setLocalItem(WORK_ORDERS_STORAGE_KEY, updated);
-      return true;
-    }
-  } catch {}
-
-  const list = getLocalItem<WorkOrderItem>(WORK_ORDERS_STORAGE_KEY, []);
-  const updated = list.map((w) => ((w._id || w.id) === id ? { ...w, status } : w));
-  setLocalItem(WORK_ORDERS_STORAGE_KEY, updated);
-  return true;
+    json = await res.json();
+  } catch {
+    json = null;
+  }
+  if (!res.ok || !json?.data) {
+    throw new ApiRequestError(json?.message || `Failed to update work order: HTTP ${res.status}`, res.status);
+  }
+  return { ...json.data, id: json.data._id };
 }
 
 // ==================== INSPECTIONS (eDVIR) MODULE ====================

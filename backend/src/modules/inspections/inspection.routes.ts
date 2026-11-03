@@ -106,11 +106,30 @@ router.post(
         res.status(409).json({ success: false, message: "A verified defect cannot receive a new work order." });
         return;
       }
+      if (!inspection.vehicleId || (!inspection.odometerKm && inspection.odometerKm !== 0)) {
+        res.status(409).json({ success: false, message: "This inspection has no linked vehicle or odometer record." });
+        return;
+      }
+      const vehicle = await Vehicle.findOne({
+        _id: inspection.vehicleId,
+        organizationId: organizationId(req),
+      }).select("_id plateNumber").lean();
+      if (!vehicle) {
+        res.status(409).json({ success: false, message: "The inspection vehicle is no longer available." });
+        return;
+      }
       const existing = await MaintenanceLog.findOne({
         organizationId: organizationId(req),
         sourceDefectId: defect._id.toString(),
       });
       if (existing) {
+        if (
+          existing.sourceInspectionId?.toString() !== inspection._id.toString() ||
+          existing.vehicleId.toString() !== inspection.vehicleId.toString()
+        ) {
+          res.status(409).json({ success: false, message: "The linked work order does not match this inspection vehicle." });
+          return;
+        }
         if (!defect.workOrderId || defect.workOrderId.toString() !== existing._id?.toString()) {
           defect.workOrderId = existing._id as mongoose.Types.ObjectId;
           defect.status = "work_order_created";
@@ -125,18 +144,6 @@ router.post(
           await inspection.save();
         }
         res.json({ success: true, data: existing });
-        return;
-      }
-      if (!inspection.vehicleId || !inspection.odometerKm && inspection.odometerKm !== 0) {
-        res.status(409).json({ success: false, message: "This inspection has no linked vehicle or odometer record." });
-        return;
-      }
-      const vehicle = await Vehicle.findOne({
-        _id: inspection.vehicleId,
-        organizationId: organizationId(req),
-      }).select("_id").lean();
-      if (!vehicle) {
-        res.status(409).json({ success: false, message: "The inspection vehicle is no longer available." });
         return;
       }
       const priority = defect.severity === "critical" ? "urgent" : defect.severity === "major" ? "high" : "medium";
@@ -160,11 +167,11 @@ router.post(
               status: "scheduled",
               priority,
               description: `${defect.category}: ${defect.description}`,
-              cost: 0,
               scheduledDate: new Date(),
               odometerKmAtService: inspection.odometerKm,
               sourceInspectionId: inspection._id,
               sourceDefectId: defect._id.toString(),
+              vehiclePlateSnapshot: inspection.vehiclePlate || vehicle.plateNumber,
             },
           },
           { new: true, upsert: true, runValidators: true }
@@ -175,6 +182,14 @@ router.post(
           organizationId: organizationId(req),
           sourceDefectId: defect._id.toString(),
         });
+        if (
+          workOrder &&
+          (workOrder.sourceInspectionId?.toString() !== inspection._id.toString() ||
+            workOrder.vehicleId.toString() !== inspection.vehicleId.toString())
+        ) {
+          res.status(409).json({ success: false, message: "The linked work order does not match this inspection vehicle." });
+          return;
+        }
       }
       if (!workOrder) {
         res.status(503).json({ success: false, message: "Could not create or retrieve the defect work order." });
@@ -250,6 +265,7 @@ router.post("/:id/review", authorize("inspections", "update"), async (req: Reque
           organizationId: organizationId(req),
           sourceInspectionId: inspection._id,
           sourceDefectId: defect._id?.toString(),
+          vehicleId: inspection.vehicleId,
           status: "completed",
         }).select("_id").lean();
         if (!workOrder) {

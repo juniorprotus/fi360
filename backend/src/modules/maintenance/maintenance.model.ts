@@ -8,7 +8,8 @@ export interface IMaintenanceLog {
   status: "scheduled" | "in_progress" | "completed" | "cancelled";
   priority: "low" | "medium" | "high" | "urgent";
   description: string;
-  cost: number;
+  cost?: number;
+  costRecorded?: boolean;
   scheduledDate: Date;
   completedDate?: Date;
   odometerKmAtService?: number;
@@ -16,6 +17,7 @@ export interface IMaintenanceLog {
   aiPredictionRef?: string;
   sourceInspectionId?: Types.ObjectId | string;
   sourceDefectId?: string;
+  vehiclePlateSnapshot?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -47,7 +49,8 @@ const MaintenanceLogSchema = new Schema<IMaintenanceLog>(
       default: "medium",
     },
     description: { type: String, required: true },
-    cost: { type: Number, default: 0 },
+    cost: { type: Number, min: 0 },
+    costRecorded: { type: Boolean, default: false },
     scheduledDate: { type: Date, required: true },
     completedDate: { type: Date },
     odometerKmAtService: { type: Number },
@@ -55,6 +58,7 @@ const MaintenanceLogSchema = new Schema<IMaintenanceLog>(
     aiPredictionRef: { type: String },
     sourceInspectionId: { type: Schema.Types.ObjectId, ref: "Inspection" },
     sourceDefectId: { type: String },
+    vehiclePlateSnapshot: { type: String, trim: true, uppercase: true },
   },
   { timestamps: true }
 );

@@ -240,3 +240,14 @@
 - [x] Expanded the isolated driver portal suite to verify assignment, reassignment, unassignment, persistence in driver detail/roster responses, unauthorized rejection, tenant validation, and linked-account preservation.
 - [x] Backend lint/build, frontend TypeScript check/build, and isolated driver portal integration tests passed.
 - [ ] Frontend lint remains failing on existing issues: full run reports 26 errors and 64 warnings; focused driver-page run reports one pre-existing `react-hooks/set-state-in-effect` error and seven unused-import warnings.
+
+## Workshop Vehicle Identity and Cost Accuracy
+- [x] Removed the workshop's hardcoded vehicle-registration fallback and local work-order success/cache paths; vehicle selection and work-order reads/writes now use authenticated backend records.
+- [x] Persisted the inspection's vehicle ID and original registration snapshot on defect work orders, and resolve older unsnapshotted records only through same-organization vehicle records.
+- [x] Made maintenance costs optional, distinguish entered zero/amounts from unrecorded costs, and show pending estimates without counting them as spend.
+- [x] Kept inspection-linked work orders bound to the inspection vehicle and retained the required completed-repair verification and authorized safety-clearance workflow.
+- [x] Verified the original KBW 434N identity remains on the linked work order after the vehicle's current registration changes; foreign vehicle/work-order access is rejected.
+- [x] Verified pending estimates, explicit zero, and entered costs persist distinctly on maintenance refetch; safety remains blocked until repair completion and authorized clearance.
+- [x] Isolated driver-portal/eDVIR integration and schema tests passed; backend lint/build, frontend TypeScript/build, focused workshop lint, and `git diff --check` passed.
+- [ ] Repository-wide frontend ESLint reports 19 errors and 55 warnings in existing code, including pre-existing `any` usage in `frontend/src/lib/api.ts`; focused workshop page lint passes.
+- [ ] Legacy work orders without a registration snapshot can only display the current same-organization vehicle plate; historical plate identity cannot be reconstructed. Existing zero costs are treated as unrecorded unless explicitly marked because their provenance cannot be inferred safely.

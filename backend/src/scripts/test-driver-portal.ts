@@ -162,7 +162,7 @@ async function run(): Promise<void> {
 
     const vehicleA = await Vehicle.create({
       vin: "PORTALVIN000000001",
-      plateNumber: `PORTALA${Date.now().toString().slice(-5)}`,
+      plateNumber: "KBW 434N",
       make: "Volvo",
       model: "FH",
       year: 2022,
@@ -173,7 +173,7 @@ async function run(): Promise<void> {
     });
     const vehicleB = await Vehicle.create({
       vin: "PORTALVIN000000002",
-      plateNumber: `PORTALB${Date.now().toString().slice(-5)}`,
+      plateNumber: "KBZ-482L",
       make: "Mercedes-Benz",
       model: "Actros",
       year: 2021,
@@ -584,6 +584,8 @@ async function run(): Promise<void> {
     );
 
     const criticalDefect = criticalResponse.body.data.defects[0] as { _id: string };
+    await Vehicle.updateOne({ _id: vehicleA._id }, { $set: { plateNumber: "KBW 999N" } });
+    vehicleA.plateNumber = "KBW 999N";
     const managerReviewDenied = await request(
       baseUrl,
       "POST",
@@ -606,6 +608,10 @@ async function run(): Promise<void> {
       {}
     );
     const criticalWorkOrder = await MaintenanceLog.findOne({ sourceDefectId: criticalDefect._id });
+    const maintenanceList = await request(baseUrl, "GET", "/api/maintenance", managerCookie);
+    const workshopCriticalOrder = maintenanceList.body.data.find(
+      (record: { _id: string }) => record._id === criticalWorkOrder?._id.toString()
+    );
     const incompleteRepairReview = await request(
       baseUrl,
       "POST",
@@ -623,8 +629,63 @@ async function run(): Promise<void> {
         repeatedWorkOrder.status === 200 &&
         criticalWorkOrder?.priority === "urgent" &&
         criticalWorkOrder?.sourceInspectionId?.toString() === criticalReport?._id.toString() &&
+        criticalWorkOrder?.vehicleId.toString() === vehicleA._id.toString() &&
+        criticalWorkOrder?.vehiclePlateSnapshot === "KBW 434N" &&
+        workshopCriticalOrder?.vehiclePlate === "KBW 434N" &&
+        workshopCriticalOrder?.vehiclePlate !== vehicleB.plateNumber &&
+        workshopCriticalOrder?.cost === undefined &&
+        workshopCriticalOrder?.costRecorded === false &&
         incompleteRepairReview.status === 409,
-      "review authorization is enforced, defect work orders are idempotently linked, and incomplete repairs cannot clear a critical defect"
+      "inspection-linked work orders preserve the original vehicle identity, leave costs pending, and cannot clear an incomplete critical repair"
+    );
+
+    const pendingEstimate = await request(baseUrl, "POST", "/api/maintenance", managerCookie, {
+      vehicleId: vehicleA._id.toString(),
+      type: "oil_service",
+      description: "Pending estimate regression",
+      scheduledDate: new Date().toISOString(),
+    });
+    const genuineZeroCost = await request(baseUrl, "POST", "/api/maintenance", managerCookie, {
+      vehicleId: vehicleA._id.toString(),
+      type: "oil_service",
+      description: "Recorded zero cost regression",
+      scheduledDate: new Date().toISOString(),
+      cost: 0,
+    });
+    const recordedCost = await request(baseUrl, "POST", "/api/maintenance", managerCookie, {
+      vehicleId: vehicleA._id.toString(),
+      type: "oil_service",
+      description: "Recorded repair cost regression",
+      scheduledDate: new Date().toISOString(),
+      cost: 123.45,
+    });
+    const maintenanceAfterCostWrites = await request(baseUrl, "GET", "/api/maintenance", managerCookie);
+    const pendingEstimateAfterFetch = maintenanceAfterCostWrites.body.data.find(
+      (record: { _id: string }) => record._id === pendingEstimate.body.data._id
+    );
+    const genuineZeroAfterFetch = maintenanceAfterCostWrites.body.data.find(
+      (record: { _id: string }) => record._id === genuineZeroCost.body.data._id
+    );
+    const recordedCostAfterFetch = maintenanceAfterCostWrites.body.data.find(
+      (record: { _id: string }) => record._id === recordedCost.body.data._id
+    );
+    assertPass(
+      pendingEstimate.status === 201 &&
+        pendingEstimate.body.data.cost === undefined &&
+        pendingEstimate.body.data.costRecorded === false &&
+        pendingEstimateAfterFetch?.cost === undefined &&
+        pendingEstimateAfterFetch?.costRecorded === false &&
+        genuineZeroCost.status === 201 &&
+        genuineZeroCost.body.data.cost === 0 &&
+        genuineZeroCost.body.data.costRecorded === true &&
+        genuineZeroAfterFetch?.cost === 0 &&
+        genuineZeroAfterFetch?.costRecorded === true &&
+        recordedCost.status === 201 &&
+        recordedCost.body.data.cost === 123.45 &&
+        recordedCost.body.data.costRecorded === true &&
+        recordedCostAfterFetch?.cost === 123.45 &&
+        recordedCostAfterFetch?.costRecorded === true,
+      "maintenance APIs preserve pending estimates, genuine zero costs, and entered amounts after refetch"
     );
 
     const completeWorkOrder = await request(
@@ -723,6 +784,32 @@ async function run(): Promise<void> {
       status: "active",
       organizationId: otherOrganization.user.organizationId,
     });
+    const foreignVehicleWorkOrder = await request(baseUrl, "POST", "/api/maintenance", managerCookie, {
+      vehicleId: foreignVehicle._id.toString(),
+      type: "oil_service",
+      description: "Cross-organization vehicle rejection",
+      scheduledDate: new Date().toISOString(),
+    });
+    const foreignWorkOrderRead = await request(
+      baseUrl,
+      "PATCH",
+      `/api/maintenance/${criticalWorkOrder?._id.toString()}`,
+      await createSession(foreignOwner),
+      { status: "in_progress" }
+    );
+    const linkedWorkOrderReassignment = await request(
+      baseUrl,
+      "PATCH",
+      `/api/maintenance/${criticalWorkOrder?._id.toString()}`,
+      managerCookie,
+      { vehicleId: vehicleB._id.toString() }
+    );
+    assertPass(
+      foreignVehicleWorkOrder.status === 400 &&
+        foreignWorkOrderRead.status === 404 &&
+        linkedWorkOrderReassignment.status === 409,
+      "maintenance rejects foreign-organization vehicle references, foreign work-order access, and reassignment of inspection-linked work"
+    );
     const foreignLink = await request(baseUrl, "POST", "/api/drivers", ownerCookie, {
       fullName: "Cross Tenant Link Attempt",
       licenseNumber: `DL-CROSS-${Date.now()}`,
