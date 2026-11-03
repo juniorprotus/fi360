@@ -10,18 +10,28 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const isDriverPortalRoute =
+    pathname === "/dashboard/driver" || pathname.startsWith("/dashboard/driver/");
+  const isAuthorized = isAuthenticated && !!user && (
+    isDriverPortalRoute
+      ? user.role === "driver"
+      : isRouteAllowedForRole(user.role, pathname)
+  );
 
   useEffect(() => {
     if (!isLoading) {
       if (!isAuthenticated) {
         router.replace("/login");
-      } else if (user && !isRouteAllowedForRole(user.role, pathname)) {
+      } else if (
+        user &&
+        !isAuthorized
+      ) {
         // Redirect to user's assigned role landing page if accessing unauthorized module
         const fallbackRoute = getDefaultRouteForRole(user.role);
         router.replace(fallbackRoute);
       }
     }
-  }, [isLoading, isAuthenticated, user, pathname, router]);
+  }, [isLoading, isAuthenticated, isAuthorized, user, pathname, router]);
 
   if (isLoading) {
     return (
@@ -36,7 +46,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !isAuthorized) {
     return null;
   }
 

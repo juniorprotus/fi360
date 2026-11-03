@@ -35,7 +35,6 @@ const FUEL_STORAGE_KEY = "fi360_persisted_fuel";
 const WORK_ORDERS_STORAGE_KEY = "fi360_persisted_work_orders";
 const INSPECTIONS_STORAGE_KEY = "fi360_persisted_inspections";
 const TRIPS_STORAGE_KEY = "fi360_persisted_trips";
-const DRIVERS_STORAGE_KEY = "fi360_persisted_drivers";
 
 // Default seed vehicles
 const DEFAULT_SEED_VEHICLES: Vehicle[] = [
@@ -730,62 +729,135 @@ export async function updateTripStatus(id: string, status: "dispatched" | "in_tr
 export interface DriverItem {
   id?: string;
   _id?: string;
+  linkedUserId?: string;
+  assignedVehicleId?: string;
   fullName: string;
   licenseNumber: string;
   licenseClass?: string;
   licenseExpiry: string;
   phone?: string;
   assignedVehicle?: string;
-  status: "active" | "on_trip" | "suspended" | "inactive";
+  status: "active" | "on_leave" | "suspended" | "off_duty";
   performanceScore: number;
 }
 
+export interface DriverPortalProfile {
+  driver: {
+    fullName: string;
+    licenseNumber: string;
+    licenseClass: string;
+    licenseExpiry: string;
+    phone: string;
+    status: string;
+  };
+  vehicle: null | {
+    plateNumber: string;
+    make: string;
+    model: string;
+    year: number;
+    type: string;
+    status: string;
+    odometerKm: number | null;
+  };
+}
+
+export interface DriverAccountOption {
+  id: string;
+  name: string;
+  email: string;
+}
+
+async function requestDriverPortal<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await authFetch(`${API_BASE}/api${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers || {}),
+    },
+  });
+  const payload = (await response.json().catch(() => null)) as
+    | { success?: boolean; message?: string; data?: T }
+    | null;
+  if (!response.ok || !payload?.success || payload.data === undefined) {
+    throw new ApiRequestError(
+      payload?.message || "The driver portal request could not be completed.",
+      response.status
+    );
+  }
+  return payload.data;
+}
+
+export async function fetchDriverPortalProfile(): Promise<DriverPortalProfile> {
+  return requestDriverPortal<DriverPortalProfile>("/drivers/me");
+}
+
+export async function fetchUnlinkedDriverAccounts(): Promise<DriverAccountOption[]> {
+  return requestDriverPortal<DriverAccountOption[]>("/drivers/available-accounts");
+}
+
+export async function submitDriverPreTripInspection(input: {
+  type: string;
+  outcome: "passed" | "failed" | "requires_attention";
+  defectsSummary: string;
+}): Promise<void> {
+  await requestDriverPortal("/drivers/me/inspections", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateDriverAccountLink(
+  driverId: string,
+  linkedUserId: string | null
+): Promise<DriverItem> {
+  return requestDriverPortal<DriverItem>(`/drivers/${encodeURIComponent(driverId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ linkedUserId }),
+  });
+}
+
 export async function fetchDrivers(): Promise<DriverItem[]> {
-  try {
-    const res = await authFetch(`${API_BASE!}/api/drivers`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
-    if (res.ok) {
-      const json = await res.json();
-      const list = (json.data || []).map((d: any) => ({
-        ...d,
-        id: d._id,
-        assignedVehicle: d.assignedVehicle || "KBZ-482L",
-      }));
-      setLocalItem(DRIVERS_STORAGE_KEY, list);
-      return list;
-    }
-  } catch {}
-  return getLocalItem<DriverItem>(DRIVERS_STORAGE_KEY, []);
+  const res = await authFetch(`${API_BASE}/api/drivers`, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(5000),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.success || !Array.isArray(json.data)) {
+    throw new ApiRequestError(json.message || "Failed to fetch drivers.", res.status);
+  }
+  return json.data.map((driver: DriverItem) => ({
+    ...driver,
+    id: driver._id,
+    assignedVehicle: driver.assignedVehicle || "Unassigned",
+  }));
 }
 
 export async function createDriver(payload: DriverItem): Promise<DriverItem> {
-  try {
-    const res = await authFetch(`${API_BASE}/api/drivers`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        fullName: payload.fullName,
-        licenseNumber: payload.licenseNumber,
-        licenseClass: payload.licenseClass || "Class A Heavy Goods",
-        licenseExpiry: payload.licenseExpiry,
-        phone: payload.phone || "+254 700 000 000",
-        status: payload.status,
-        performanceScore: payload.performanceScore,
-      }),
-      signal: AbortSignal.timeout(5000),
-    });
-    if (res.ok) {
-      const json = await res.json();
-      const created = { ...json.data, id: json.data._id, assignedVehicle: payload.assignedVehicle || "Unassigned" };
-      const list = getLocalItem<DriverItem>(DRIVERS_STORAGE_KEY, []);
-      setLocalItem(DRIVERS_STORAGE_KEY, [created, ...list]);
-      return created;
-    }
-  } catch {}
-
-  const newItem: DriverItem = { ...payload, id: `drv_${Date.now()}`, _id: `drv_${Date.now()}` };
-  const list = getLocalItem<DriverItem>(DRIVERS_STORAGE_KEY, []);
-  setLocalItem(DRIVERS_STORAGE_KEY, [newItem, ...list]);
-  return newItem;
+  const res = await authFetch(`${API_BASE}/api/drivers`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      fullName: payload.fullName,
+      licenseNumber: payload.licenseNumber,
+      licenseClass: payload.licenseClass || "Class A Heavy Goods",
+      licenseExpiry: payload.licenseExpiry,
+      phone: payload.phone || "+254 700 000 000",
+      status: payload.status,
+      performanceScore: payload.performanceScore,
+      ...(payload.assignedVehicleId ? { assignedVehicleId: payload.assignedVehicleId } : {}),
+      ...(payload.linkedUserId ? { linkedUserId: payload.linkedUserId } : {}),
+    }),
+    signal: AbortSignal.timeout(5000),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.success || !json.data) {
+    throw new ApiRequestError(json.message || "Failed to create driver.", res.status);
+  }
+  return {
+    ...json.data,
+    id: json.data._id,
+    assignedVehicle: payload.assignedVehicle || "Unassigned",
+  };
 }
 
 export interface OrganizationUser {

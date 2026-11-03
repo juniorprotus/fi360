@@ -88,6 +88,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     .map((section) => ({
       ...section,
       items: section.items.filter((item) => {
+        if (item.href === "/dashboard/driver" && userRole !== "driver") {
+          return false;
+        }
         if (
           item.href === "/dashboard/admin/users" &&
           userRole !== "owner" &&

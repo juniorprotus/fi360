@@ -11,6 +11,7 @@ export interface IDriver {
   status: "active" | "on_leave" | "suspended" | "off_duty";
   performanceScore: number;
   assignedVehicleId?: Types.ObjectId | string;
+  linkedUserId?: Types.ObjectId | string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -35,8 +36,14 @@ const DriverSchema = new Schema<IDriver>(
     },
     performanceScore: { type: Number, default: 90, min: 0, max: 100 },
     assignedVehicleId: { type: Schema.Types.ObjectId, ref: "Vehicle" },
+    linkedUserId: { type: Schema.Types.ObjectId, ref: "User" },
   },
   { timestamps: true }
+);
+
+DriverSchema.index(
+  { linkedUserId: 1 },
+  { unique: true, sparse: true, name: "driver_linked_user_unique" }
 );
 
 export const Driver = mongoose.models.Driver || mongoose.model<IDriver>("Driver", DriverSchema);

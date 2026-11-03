@@ -11,6 +11,7 @@ export const DriverCreateSchema = z.object({
   status: DriverStatusEnum.default("active"),
   performanceScore: z.number().min(0).max(100).default(90),
   assignedVehicleId: z.string().optional(),
+  linkedUserId: z.string().nullable().optional(),
 }).strict();
 
 export const DriverUpdateSchema = DriverCreateSchema.partial().strict();
