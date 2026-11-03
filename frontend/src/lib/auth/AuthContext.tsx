@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { UserRole, getDefaultRouteForRole } from "./rbac";
+import { API_BASE_URL } from "../apiBase";
 
 export interface User {
   id: string;
@@ -34,14 +35,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const API_BASE: string = (() => {
-  const envUrl = process.env.NEXT_PUBLIC_API_URL;
-  if (envUrl) return envUrl;
-  if (process.env.NODE_ENV === 'development') {
-    return 'http://127.0.0.1:5000';
-  }
-  throw new Error('NEXT_PUBLIC_API_URL environment variable is not set. Please configure the API base URL.');
-})();
+const API_BASE = API_BASE_URL;
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);

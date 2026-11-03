@@ -73,8 +73,10 @@ In Vercel → Project → **Settings** → **Environment Variables**:
 
 | Key | Value | Environments |
 |---|---|---|
-| `NEXT_PUBLIC_API_URL` | `https://fi360-backend.onrender.com` | Production |
-| `NEXT_PUBLIC_API_URL` | `http://localhost:5000` | Preview, Development |
+| `NEXT_PUBLIC_API_URL` | `https://fi360.onrender.com` | Production, Preview (optional override) |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:5000` | Development (optional override) |
+
+The frontend defaults to `https://fi360.onrender.com` in production and `http://127.0.0.1:5000` in development. Set `NEXT_PUBLIC_API_URL` in Vercel's **Settings → Environment Variables** only when overriding those defaults. It must be available at build time; adding it to `vercel.json` does not configure the project's environment variables. After changing it, create a new deployment so Next.js can inline the value into the frontend build.
 
 ### C. Deploy
 Click **"Deploy"** — Vercel auto-deploys on every push to `main`.
