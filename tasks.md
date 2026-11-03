@@ -204,3 +204,13 @@
 - [x] Verify reset-token single use, cross-user isolation, and rejection of existing sessions on two concurrent backend processes.
 - [x] Verify that unsupported transaction topologies fail closed without changing the password, reset token, or session records.
 - [x] Run backend lint/build, authentication (32/32), cross-instance authentication (16 assertions), standalone transaction-failure (3 assertions), tenant/security (33/33), user management (28/28), schema (20/20), and body-parser (4/4) tests against isolated local databases; `git diff --check` passed.
+
+## Driver Portal Access Control and Vehicle Assignment
+- [x] Restricted the Driver Portal sidebar link and direct route to driver-role accounts; unauthenticated and unauthorized routes do not render protected page content.
+- [x] Added a unique driver-account association and manager-only same-organization linking/unlinking with validation for active driver accounts.
+- [x] Added driver self-profile and pre-trip inspection endpoints that derive driver, tenant, vehicle, and inspection identity from the authenticated account and database assignment.
+- [x] Replaced placeholder portal vehicle/route data with the driver's linked profile and assigned vehicle; show an explicit no-assignment state and block inspection submission without an assignment.
+- [x] Added an interactive pre-trip checklist that records issues for follow-up instead of submitting a false pass.
+- [x] Added isolated MongoDB integration coverage for non-driver access denial, per-driver vehicle isolation, unassigned drivers, rejected browser-supplied IDs, inspection attribution, same-tenant linking, cross-tenant linking rejection, and unlink revocation (13 assertions passed).
+- [x] Backend TypeScript lint/build, frontend TypeScript check/build (using a temporary local API URL), focused Driver Portal ESLint, and `git diff --check` passed.
+- [ ] Broader ESLint over the touched frontend set still reports pre-existing violations in driver roster/API code; no unrelated lint cleanup was included.

@@ -17,7 +17,15 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { fetchDrivers, createDriver, DriverItem } from "@/lib/api";
+import {
+  fetchDrivers,
+  createDriver,
+  fetchVehicles,
+  fetchUnlinkedDriverAccounts,
+  updateDriverAccountLink,
+  DriverItem,
+  DriverAccountOption,
+} from "@/lib/api";
 
 export default function DriversPage() {
   const [drivers, setDrivers] = useState<DriverItem[]>([]);
@@ -29,6 +37,10 @@ export default function DriversPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<DriverItem | null>(null);
+  const [driverAccounts, setDriverAccounts] = useState<DriverAccountOption[]>([]);
+  const [vehicleOptions, setVehicleOptions] = useState<{ id: string; label: string }[]>([]);
+  const [linkingAccount, setLinkingAccount] = useState(false);
+  const [selectedLinkedUserId, setSelectedLinkedUserId] = useState("");
 
   // Form State
   const [formData, setFormData] = useState<DriverItem>({
@@ -37,9 +49,11 @@ export default function DriversPage() {
     licenseClass: "Class A Heavy Goods",
     licenseExpiry: "2027-12-31",
     phone: "+254 712 345 678",
-    assignedVehicle: "KBZ-482L",
+    assignedVehicle: "Unassigned",
     status: "active",
     performanceScore: 95,
+    linkedUserId: "",
+    assignedVehicleId: "",
   });
 
   const loadData = useCallback(async () => {
@@ -47,6 +61,20 @@ export default function DriversPage() {
     try {
       const data = await fetchDrivers();
       setDrivers(data);
+      const [accounts, vehicles] = await Promise.all([
+        fetchUnlinkedDriverAccounts(),
+        fetchVehicles(),
+      ]);
+      setDriverAccounts(accounts);
+      if (vehicles.isFallback) {
+        setVehicleOptions([]);
+        toast.error("Live vehicle data is unavailable; assignments are disabled.");
+      } else {
+        setVehicleOptions(vehicles.data.map((vehicle) => ({
+          id: vehicle._id,
+          label: `${vehicle.plateNumber} - ${vehicle.make} ${vehicle.model}`,
+        })));
+      }
     } catch {
       toast.error("Failed to load driver roster");
     } finally {
@@ -65,11 +93,34 @@ export default function DriversPage() {
       licenseClass: "Class A Heavy Goods",
       licenseExpiry: "2027-11-30",
       phone: "+254 722 000 111",
-      assignedVehicle: "KBZ-482L",
+      assignedVehicle: "Unassigned",
       status: "active",
       performanceScore: 94,
+      linkedUserId: "",
+      assignedVehicleId: "",
     });
     setIsModalOpen(true);
+  };
+
+  const handleSaveDriverLink = async () => {
+    if (!selectedDriver?._id) return;
+    setLinkingAccount(true);
+    try {
+      await updateDriverAccountLink(
+        selectedDriver._id,
+        selectedLinkedUserId || null
+      );
+      toast.success("Driver account link updated");
+      setSelectedDriver({
+        ...selectedDriver,
+        linkedUserId: selectedLinkedUserId || undefined,
+      });
+      await loadData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update driver account link");
+    } finally {
+      setLinkingAccount(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -85,8 +136,8 @@ export default function DriversPage() {
       setDrivers((prev) => [created, ...prev]);
       toast.success(`Driver ${created.fullName} registered successfully`);
       setIsModalOpen(false);
-    } catch (err: any) {
-      toast.error(err.message || "Failed to create driver");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to create driver");
     } finally {
       setSubmitting(false);
     }
@@ -192,8 +243,9 @@ export default function DriversPage() {
           >
             <option value="all">All Drivers ({drivers.length})</option>
             <option value="active">Active Duty</option>
-            <option value="on_trip">On Trip</option>
+            <option value="on_leave">On Leave</option>
             <option value="suspended">Suspended</option>
+            <option value="off_duty">Off Duty</option>
           </select>
         </div>
       </div>
@@ -272,7 +324,10 @@ export default function DriversPage() {
                     </td>
                     <td className="px-4 py-3.5 text-right">
                       <button
-                        onClick={() => setSelectedDriver(d)}
+                        onClick={() => {
+                          setSelectedDriver(d);
+                          setSelectedLinkedUserId(d.linkedUserId || "");
+                        }}
                         className="rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 dark:border-slate-700 dark:text-blue-400 dark:hover:bg-slate-800"
                       >
                         View Profile
@@ -324,7 +379,7 @@ export default function DriversPage() {
 
               <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
                 <span className="text-slate-500">Assigned Vehicle:</span>
-                <span className="font-bold text-blue-600 dark:text-blue-400">{selectedDriver.assignedVehicle || "KBZ-482L"}</span>
+                <span className="font-bold text-blue-600 dark:text-blue-400">{selectedDriver.assignedVehicle || "Unassigned"}</span>
               </div>
 
               <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
@@ -341,6 +396,36 @@ export default function DriversPage() {
                 <span className="text-slate-500">Duty Status:</span>
                 <span className="capitalize font-semibold text-emerald-600">{selectedDriver.status || "Active Duty"}</span>
               </div>
+            </div>
+
+            <div className="border-t border-slate-100 py-4 dark:border-slate-800">
+              <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Linked driver login
+              </label>
+              <select
+                value={selectedLinkedUserId}
+                onChange={(event) => setSelectedLinkedUserId(event.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              >
+                <option value="">No account linked</option>
+                {driverAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.name} ({account.email})
+                  </option>
+                ))}
+                {selectedDriver.linkedUserId &&
+                  !driverAccounts.some((account) => account.id === selectedDriver.linkedUserId) && (
+                    <option value={selectedDriver.linkedUserId}>Currently linked account</option>
+                  )}
+              </select>
+              <button
+                type="button"
+                onClick={handleSaveDriverLink}
+                disabled={linkingAccount}
+                className="mt-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {linkingAccount ? "Saving..." : "Save account link"}
+              </button>
             </div>
 
             <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
@@ -418,13 +503,43 @@ export default function DriversPage() {
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     Assigned Vehicle
                   </label>
-                  <input
-                    type="text"
-                    value={formData.assignedVehicle}
-                    onChange={(e) => setFormData({ ...formData, assignedVehicle: e.target.value.toUpperCase() })}
+                  <select
+                    value={formData.assignedVehicleId || ""}
+                    onChange={(e) => {
+                      const vehicle = vehicleOptions.find((option) => option.id === e.target.value);
+                      setFormData({
+                        ...formData,
+                        assignedVehicleId: e.target.value,
+                        assignedVehicle: vehicle?.label || "Unassigned",
+                      });
+                    }}
                     className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                  />
+                  >
+                    <option value="">No vehicle assigned</option>
+                    {vehicleOptions.map((vehicle) => (
+                      <option key={vehicle.id} value={vehicle.id}>{vehicle.label}</option>
+                    ))}
+                  </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Driver login account
+                </label>
+                <select
+                  value={formData.linkedUserId || ""}
+                  onChange={(e) => setFormData({ ...formData, linkedUserId: e.target.value })}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                >
+                  <option value="">No account linked</option>
+                  {driverAccounts.map((account) => (
+                    <option key={account.id} value={account.id}>{account.name} ({account.email})</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Only active driver accounts in this organization can be linked.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

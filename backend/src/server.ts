@@ -22,6 +22,7 @@ import { authenticate } from "./modules/auth/auth.middleware";
 import { isTrustedOrigin, protectStateChangingRequests } from "./modules/auth/request-protection";
 import { requireDatabase, requireOrganization } from "./modules/auth/tenant.middleware";
 import { AuthSession } from "./modules/auth/auth-session.model";
+import { Driver } from "./modules/drivers/driver.model";
 
 // Load .env file first
 dotenv.config();
@@ -145,6 +146,7 @@ async function startServer(): Promise<void> {
   await connectDB();
   if (isDbConnected()) {
     await AuthSession.createIndexes();
+    await Driver.createIndexes();
   }
   const server = app.listen(PORT, () => {
     console.log(`\n🚀 FI360 Backend running on port ${PORT}`);
